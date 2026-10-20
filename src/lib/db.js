@@ -11,6 +11,7 @@ export async function db() {
 export async function ensureIndexes() {
   const database = await db();
   await Promise.all([
+    database.collection('notificationOutbox').createIndex({clinicId:1,eventKey:1},{unique:true}),
     database.collection('users').createIndex({ email: 1 }, { unique: true }),
     database.collection('clinics').createIndex({ slug: 1 }, { unique: true }),
     database.collection('sessions').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),

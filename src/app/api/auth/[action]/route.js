@@ -5,7 +5,7 @@ import { fail, ok, string } from '@/lib/http';
 export async function GET(request, { params }) {
   if ((await params).action !== 'me') return fail('Not found', 404);
   const user = await currentUser();
-  return ok({ user: user ? { id: String(user._id), name: user.name, email: user.email, role: user.role, clinicId: user.clinicId } : null });
+  return ok({ user: user ? { id: String(user._id), name: user.name, email: user.email, role: user.role, clinicId: user.clinicId, doctorId:user.doctorId||null } : null });
 }
 
 export async function POST(request, { params }) {

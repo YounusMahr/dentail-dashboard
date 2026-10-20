@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { fail, ok } from '@/lib/http';
 import { modules } from '@/lib/modules';
 import { cleanRecord } from '@/lib/records';
+import { enqueue } from '@/lib/messaging';
 
 function config(module, user, write = false) {
   const schema = modules[module];
@@ -52,6 +53,7 @@ export async function POST(request, { params }) {
       if (doctor) await database.collection('doctors').updateOne({ _id: doctor._id }, { $set: { userId: String(result.insertedId) } });
       else await database.collection('doctors').insertOne({ clinicId: user.clinicId, userId: String(result.insertedId), name: record.name, email: record.email, specialization: 'General Dentist', slotMinutes: 30, workingDays: 'monday,tuesday,wednesday,thursday,friday,saturday', startTime: '10:00', endTime: '20:00', active: true, createdAt: new Date() });
     }
+    if(module==='appointments')try{await enqueue({clinicId:user.clinicId,patientId:record.patientId,type:'appointment_confirmation',eventKey:'booking:'+result.insertedId+':'+record.appointmentDate+':'+record.startsAt,values:[record.appointmentDate,record.startsAt],sourceCollection:'appointments',sourceId:String(result.insertedId),sourceFingerprint:record.appointmentDate+' '+record.startsAt})}catch{console.error('Booking saved; notification will be recovered by scheduler')}
     return ok({ id: String(result.insertedId) }, 201);
   } catch (error) { return fail(error.code === 11000 ? 'This record already exists or slot is booked' : error.message); }
 }

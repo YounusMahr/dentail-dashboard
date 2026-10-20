@@ -2,6 +2,7 @@ import { ObjectId } from 'mongodb';
 import { db, ensureIndexes } from '@/lib/db';
 import { fail, ok, string } from '@/lib/http';
 import { sameOrigin } from '@/lib/auth';
+import { enqueue } from '@/lib/messaging';
 
 async function clinicFor(slug) { return (await db()).collection('clinics').findOne({ slug, status: 'active' }); }
 function validDate(value) { return /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }); }
@@ -15,7 +16,8 @@ export async function GET(request, { params }) {
     database.collection('doctors').find({ clinicId, active: { $ne: false } }, { projection: { name: 1, specialization: 1, slotMinutes: 1, workingDays: 1, startTime: 1, endTime: 1, breakStart: 1, breakEnd: 1 } }).toArray(),
     database.collection('services').find({ clinicId, active: { $ne: false } }, { projection: { name: 1, description: 1, standardFee: 1, durationMinutes: 1 } }).toArray()
   ]);
-  return ok({ clinic: { name: clinic.name, slug: clinic.slug, phone: clinic.phone, address: clinic.address, emergencyNotice: clinic.emergencyNotice }, doctors, services });
+  const pages=await database.collection('clinicPages').find({clinicId,published:{$ne:null}},{projection:{slug:1,'published.title':1,'published.sortOrder':1}}).toArray();
+  return ok({ pages:pages.map(p=>({slug:p.slug,title:p.published.title,sortOrder:p.published.sortOrder||0})).sort((a,b)=>a.sortOrder-b.sortOrder), clinic: { name: clinic.name, slug: clinic.slug, phone: clinic.phone, address: clinic.address, emergencyNotice: clinic.emergencyNotice }, doctors, services });
 }
 
 export async function POST(request, { params }) {
@@ -40,10 +42,11 @@ export async function POST(request, { params }) {
     serviceId = body.serviceId;
   }
   await ensureIndexes();
-  const patient = await database.collection('patients').findOneAndUpdate({ clinicId, phone }, { $setOnInsert: { clinicId, name, phone, email: string(body.patientEmail), createdAt: new Date() } }, { upsert: true, returnDocument: 'after' });
+  const patient = await database.collection('patients').findOneAndUpdate({ clinicId, phone }, { $setOnInsert: { clinicId, name, phone, email: string(body.patientEmail), whatsappConsent:body.whatsappConsent===true, preferredLanguage:body.preferredLanguage==='ur'?'ur':'en', createdAt: new Date() } }, { upsert: true, returnDocument: 'after' });
   try {
     const end = start + duration;
     const appointment = await database.collection('appointments').insertOne({ clinicId, patientId: String(patient._id), doctorId: body.doctorId, serviceId, appointmentDate: date, startsAt: time, endsAt: `${String(Math.floor(end / 60)).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`, status: 'confirmed', patientNotes: string(body.patientNotes), createdAt: new Date() });
+    try{await enqueue({clinicId,patientId:String(patient._id),type:'appointment_confirmation',eventKey:'booking:'+appointment.insertedId+':'+date+':'+time,values:[date,time],sourceCollection:'appointments',sourceId:String(appointment.insertedId),sourceFingerprint:date+' '+time})}catch{console.error('Booking saved; notification will be recovered by scheduler')}
     return ok({ confirmationId: String(appointment.insertedId) }, 201);
   } catch (error) { return fail(error.code === 11000 ? 'This slot was just booked. Please choose another.' : 'Booking failed', 409); }
 }

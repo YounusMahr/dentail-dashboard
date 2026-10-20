@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { LayoutDashboard, CalendarDays, Users, Stethoscope, Receipt, BellRing, UserRound, HeartPulse, ChartNoAxesCombined, Settings2, CreditCard, ShieldCheck, Search, Menu, X, ChevronRight, LogOut, ArrowUpRight } from 'lucide-react';
 import Brand from '@/components/brand';
-const icons = { Dashboard: LayoutDashboard, Appointments: CalendarDays, Patients: Users, Treatments: HeartPulse, Invoices: Receipt, 'Follow-ups': BellRing, Doctors: Stethoscope, Services: ShieldCheck, Reports: ChartNoAxesCombined, Staff: Users, 'Clinic settings': Settings2, Subscription: CreditCard, Platform: LayoutDashboard, 'My account': UserRound };
+const icons = { 'Care workspace': HeartPulse, Dashboard: LayoutDashboard, Appointments: CalendarDays, Patients: Users, Treatments: HeartPulse, Invoices: Receipt, 'Follow-ups': BellRing, Doctors: Stethoscope, Services: ShieldCheck, Reports: ChartNoAxesCombined, Staff: Users, 'Clinic settings': Settings2, Subscription: CreditCard, Platform: LayoutDashboard, 'My account': UserRound };
 export default function WorkspaceShell({ children, links, user, clinicName }) {
   const pathname = usePathname(), [open,setOpen] = useState(false), [search,setSearch] = useState(''), [loggingOut,setLoggingOut] = useState(false);
   useEffect(()=>{setOpen(false);setSearch('')},[pathname]);
@@ -12,7 +12,7 @@ export default function WorkspaceShell({ children, links, user, clinicName }) {
   const mainLinks=links.filter(([label])=>!['Reports','Staff','Clinic settings','Subscription','My account'].includes(label));
   const manageLinks=links.filter(([label])=>['Reports','Staff','Clinic settings','Subscription','My account'].includes(label));
   const initials=user.name?.split(' ').map(x=>x[0]).slice(0,2).join('') || 'DC';
-  const renderLink=([label,href])=>{const Icon=icons[label]||LayoutDashboard,active=pathname===href||(href!=='/dashboard'&&pathname.startsWith(href+'/'));return <Link key={href} href={href} className={`nav-link ${active?'active':''}`} aria-current={active?'page':undefined}><Icon size={19}/><span>{label}</span>{active&&<span className="nav-active-dot"/>}</Link>};
+  const renderLink=([label,href])=>{const Icon=icons[label]||LayoutDashboard,active=pathname===href||(href!=='/dashboard'&&pathname.startsWith(href+'/')||href==='/dashboard/care/plans'&&pathname.startsWith('/dashboard/care/'));return <Link key={href} href={href} className={`nav-link ${active?'active':''}`} aria-current={active?'page':undefined}><Icon size={19}/><span>{label}</span>{active&&<span className="nav-active-dot"/>}</Link>};
   async function logout(){setLoggingOut(true);try{const r=await fetch('/api/auth/logout',{method:'POST'});if(r.ok)location.href='/login';else setLoggingOut(false)}catch{setLoggingOut(false)}}
   return <div className="workspace">
     <a href="#workspace-content" className="skip-link">Skip to content</a>

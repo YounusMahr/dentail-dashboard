@@ -1,7 +1,7 @@
 export const modules = {
   patients: { title: 'Patients', roles: ['clinic_admin', 'receptionist', 'dentist'], fields: [
     ['name', 'Name', 'text', true], ['phone', 'Phone', 'tel', true], ['email', 'Email', 'email'], ['dateOfBirth', 'Date of birth', 'date'],
-    ['gender', 'Gender', 'select:male,female,other'], ['bloodGroup', 'Blood group', 'text'], ['address', 'Address', 'text'], ['medicalHistory', 'Medical history', 'textarea']
+    ['whatsappConsent','Patient agreed to WhatsApp notifications','checkbox'], ['preferredLanguage','Message language','select:en,ur'], ['gender', 'Gender', 'select:male,female,other'], ['bloodGroup', 'Blood group', 'text'], ['address', 'Address', 'text'], ['medicalHistory', 'Medical history', 'textarea']
   ] },
   services: { title: 'Dental services', roles: ['clinic_admin', 'receptionist', 'dentist'], writeRoles: ['clinic_admin'], fields: [
     ['name', 'Name', 'text', true], ['category', 'Category', 'text'], ['description', 'Description', 'textarea'], ['standardFee', 'Fee (PKR)', 'number', true],

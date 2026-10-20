@@ -2,6 +2,7 @@ import { ObjectId } from 'mongodb';
 import { modules } from './modules';
 import { db, ensureIndexes } from './db';
 import { writeBlock } from './clinic-access';
+import { money } from './care-validation.mjs';
 
 const refCollections = { patientId: 'patients', doctorId: 'doctors', serviceId: 'services' };
 const numeric = new Set(['standardFee', 'durationMinutes', 'consultationFee', 'slotMinutes', 'quantity', 'unitPrice', 'discountAmount']);
@@ -68,23 +69,26 @@ export async function cleanRecord(module, input, user, existing = null) {
     if (!existing && !record.status) record.status = 'confirmed';
   }
   if (module === 'invoices' && !existing) {
+    record.feeType = ['consultation','checkup','treatment'].includes(input.feeType)?input.feeType:'treatment';
+    if(input.doctorId){if(!ObjectId.isValid(input.doctorId)||!await database.collection('doctors').findOne({_id:new ObjectId(input.doctorId),clinicId:user.clinicId}))throw new Error('Invalid dentist');record.doctorId=input.doctorId}
+    if(record.feeType!=='treatment'&&!record.doctorId)throw new Error('Choose a dentist for consultation / checkup billing');
     const rawItems = Array.isArray(input.items) ? input.items : [{ description: record.description, quantity: record.quantity, unitPrice: record.unitPrice }];
     if (!rawItems.length || rawItems.length > 30) throw new Error('Invoice needs 1–30 items');
     record.items = [];
     for (const item of rawItems) {
-      const description = String(item.description || '').trim().slice(0, 200), quantity = Number(item.quantity), unitPrice = Number(item.unitPrice);
+      const description = String(item.description || '').trim().slice(0, 200), quantity = Number(item.quantity), unitPrice = money(item.unitPrice);
       if (!description || !Number.isInteger(quantity) || quantity < 1 || !(unitPrice >= 0)) throw new Error('Invalid invoice item');
       let serviceId = '';
       if (item.serviceId) {
         if (!ObjectId.isValid(item.serviceId) || !await database.collection('services').findOne({ _id: new ObjectId(item.serviceId), clinicId: user.clinicId })) throw new Error('Invalid service');
         serviceId = item.serviceId;
       }
-      record.items.push({ serviceId, description, quantity, unitPrice, totalPrice: quantity * unitPrice });
+      record.items.push({ serviceId, description, quantity, unitPrice, totalPrice: money(quantity * unitPrice) });
     }
-    const subtotal = record.items.reduce((total, item) => total + item.totalPrice, 0), discount = Number(record.discountAmount || 0);
+    const subtotal = money(record.items.reduce((total, item) => total + item.totalPrice, 0)), discount = money(record.discountAmount || 0);
     if (!(discount >= 0 && discount <= subtotal)) throw new Error('Invalid discount');
     record.description = record.items.map(x => x.description).join(', ').slice(0, 500);
-    record.totalAmount = subtotal - discount; record.paidAmount = 0; record.balanceAmount = record.totalAmount; record.status = 'unpaid';
+    record.totalAmount = money(subtotal - discount); record.paidAmount = 0; record.balanceAmount = record.totalAmount; record.status = 'unpaid';
     record.invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
   }
   await ensureIndexes();

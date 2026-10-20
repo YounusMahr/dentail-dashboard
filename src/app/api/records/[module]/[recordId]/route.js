@@ -44,8 +44,8 @@ export async function DELETE(request, { params }) {
   if (['invoices', 'treatments', 'appointments'].includes(ctx.module)) return fail('Clinical and financial records cannot be deleted');
   if (ctx.module === 'staff' && String(ctx.existing._id) === String(ctx.user._id)) return fail('Cannot delete your own account');
   const database = await db();
-  if (ctx.module === 'patients') for (const collection of ['appointments','treatments','invoices','payments','follow-ups','patientDocuments']) if (await database.collection(collection).findOne({ clinicId: ctx.user.clinicId, patientId: String(ctx.existing._id) })) return fail('Patient has linked records and cannot be deleted');
-  if (ctx.module === 'doctors') for (const collection of ['appointments','treatments']) if (await database.collection(collection).findOne({ clinicId: ctx.user.clinicId, doctorId: String(ctx.existing._id) })) return fail('Doctor has linked records and cannot be deleted');
+  if (ctx.module === 'patients') for (const collection of ['appointments','treatments','invoices','payments','follow-ups','patientDocuments','treatmentPlans','careSessions','prescriptions','labCases','waitingList','portalAccess']) if (await database.collection(collection).findOne({ clinicId: ctx.user.clinicId, patientId: String(ctx.existing._id) })) return fail('Patient has linked records and cannot be deleted');
+  if (ctx.module === 'doctors') for (const collection of ['appointments','treatments','treatmentPlans','prescriptions','careSessions','waitingList']) if (await database.collection(collection).findOne({ clinicId: ctx.user.clinicId, doctorId: String(ctx.existing._id) })) return fail('Doctor has linked records and cannot be deleted');
   if (ctx.module === 'services') for (const collection of ['appointments','treatments']) if (await database.collection(collection).findOne({ clinicId: ctx.user.clinicId, serviceId: String(ctx.existing._id) })) return fail('Service is in use and cannot be deleted');
   if (ctx.module === 'staff') {
     await ctx.collection.updateOne(ctx.filter, { $set: { active: false, updatedAt: new Date() } });

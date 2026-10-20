@@ -21,6 +21,7 @@ export async function POST(request, { params }) {
   if (!await database.collection('patients').findOne({ _id: new ObjectId(patientId), clinicId: user.clinicId })) return fail('Patient not found', 404);
   const form = await request.formData(), file = form.get('file');
   if (!file || typeof file === 'string' || file.size < 1 || file.size > 10 * 1024 * 1024 || !['image/jpeg', 'image/png', 'application/pdf'].includes(file.type)) return fail('Use a JPEG, PNG or PDF under 10 MB');
+  const toothNumbers=string(form.get('toothNumbers'),100);if(toothNumbers&&!toothNumbers.split(/[\s,]+/).every(n=>/^[1-8][1-8]$/.test(n)&&(+n[0]<5||+n[1]<=5)))return fail('Invalid FDI tooth numbers');
   const bucket = new GridFSBucket(database, { bucketName: 'clinicalFiles' });
   const fileId = new ObjectId(), filename = `${user.clinicId}/${patientId}/${fileId}`;
   const bytes = Buffer.from(await file.arrayBuffer());
@@ -32,7 +33,7 @@ export async function POST(request, { params }) {
   if (!signatures[file.type]) return fail('File content does not match its type');
   await new Promise((resolve, reject) => { const stream = bucket.openUploadStreamWithId(fileId, filename, { contentType: file.type }); stream.on('finish', resolve).on('error', reject); stream.end(bytes); });
   let result;
-  try { result = await database.collection('patientDocuments').insertOne({ clinicId: user.clinicId, patientId, fileId, title: string(form.get('title'), 150) || file.name.slice(0, 150), documentType: string(form.get('documentType'), 40) || 'other', fileName: file.name.slice(0, 200), fileSize: file.size, mimeType: file.type, uploadedByUserId: String(user._id), createdAt: new Date() }); }
+  try { result = await database.collection('patientDocuments').insertOne({ clinicId: user.clinicId, patientId, fileId, toothNumbers, title: string(form.get('title'), 150) || file.name.slice(0, 150), documentType: string(form.get('documentType'), 40) || 'other', fileName: file.name.slice(0, 200), fileSize: file.size, mimeType: file.type, uploadedByUserId: String(user._id), createdAt: new Date() }); }
   catch (error) { await bucket.delete(fileId); throw error; }
   return ok({ id: String(result.insertedId) }, 201);
 }
