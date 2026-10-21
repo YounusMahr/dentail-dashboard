@@ -284,7 +284,7 @@ export default function ClinicPage() {
       <section
         className="clinic-hero-v2"
         style={{
-          backgroundImage: "url('/images/clinic-hero-family.jpg')"
+          backgroundImage: "url('/images/clinic-hero-smile.jpg')"
         }}
       >
         <div className="container">
