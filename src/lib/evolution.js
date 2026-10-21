@@ -24,7 +24,6 @@ export async function evolutionFetch(path, options = {}) {
   const { baseUrl, apiKey } = getEvolutionConfig();
   const url = `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
   const headers = {
-    'apiKey': apiKey,
     'apikey': apiKey,
     'Content-Type': 'application/json',
     ...(options.headers || {})
