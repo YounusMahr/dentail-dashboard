@@ -13,7 +13,10 @@ export async function GET() {
     database.collection('planRequests').find({ status: 'pending' }).toArray(),
     database.collection('subscriptionPlans').find({ active: true }).toArray()
   ]);
-  return ok({ clinics, subscriptions, requests, plans });
+  const counts=await Promise.all(clinics.map(async c=>{const q={clinicId:String(c._id)},[patients,appointments,staff,treatments,invoices,payments]=await Promise.all(['patients','appointments','users','treatments','invoices','payments'].map(n=>database.collection(n).find(q,{projection:n==='invoices'?{totalAmount:1,balanceAmount:1,status:1}:n==='payments'?{amount:1}:{_id:1}}).toArray()));return {id:String(c._id),patients:patients.length,appointments:appointments.length,staff:staff.length,treatments:treatments.length,billed:invoices.filter(i=>i.status!=='cancelled').reduce((n,i)=>n+Number(i.totalAmount||0),0),outstanding:invoices.filter(i=>i.status!=='cancelled').reduce((n,i)=>n+Number(i.balanceAmount||0),0),collected:payments.reduce((n,p)=>n+Number(p.amount||0),0)}}));
+  const platformInvoices=await database.collection('platformInvoices').find({}).sort({createdAt:-1}).limit(100).toArray();
+  const mrr=subscriptions.filter(s=>s.status==='active').reduce((n,s)=>{const plan=plans.find(p=>p.slug===s.plan);return n+(s.billingInterval==='yearly'?Number(plan?.priceAnnual||0)/12:Number(plan?.priceMonthly||0))},0);
+  return ok({ clinics:clinics.map(({logoData,faviconData,...c})=>c), subscriptions, requests, plans, counts, platformInvoices, metrics:{mrr,arr:mrr*12,active:subscriptions.filter(s=>s.status==='active').length,trial:subscriptions.filter(s=>s.status==='trialing').length,saasRevenue:platformInvoices.filter(i=>i.status==='paid').reduce((n,i)=>n+Number(i.amount||0),0)} });
 }
 
 export async function PATCH(request) {
@@ -22,6 +25,23 @@ export async function PATCH(request) {
   const body = await request.json().catch(() => ({}));
   if (!id(body.clinicId)) return fail('Invalid clinic');
   const database = await db();
+  if(['updateSubscription','recordPayment'].includes(body.action)){
+    const clinic=await database.collection('clinics').findOne({_id:new ObjectId(body.clinicId)});if(!clinic)return fail('Clinic not found',404);
+    const current=await database.collection('subscriptions').findOne({clinicId:body.clinicId},{sort:{createdAt:-1}});
+    const plan=await database.collection('subscriptionPlans').findOne({slug:body.plan||current?.plan,active:true});if(!plan)return fail('Select an active plan');
+    if(body.action==='updateSubscription'&&(!['active','trialing','past_due','suspended'].includes(body.status)||!['monthly','yearly'].includes(body.interval)))return fail('Invalid subscription settings');
+    const days=Number(body.extendDays||0),months=Number(body.extendMonths),amount=Number(body.amount);
+    if(body.action==='updateSubscription'&&(!Number.isInteger(days)||days<0||days>365))return fail('Extension must be 0–365 days');
+    if(body.action==='recordPayment'&&(!Number.isInteger(months)||months<1||months>24||!Number.isFinite(amount)||amount<1||!String(body.paymentReference||'').trim()))return fail('Enter amount, verified payment reference and 1–24 months');
+    const session=database.client.startSession();try{await session.withTransaction(async()=>{
+      const sub=await database.collection('subscriptions').findOne({clinicId:body.clinicId},{session,sort:{createdAt:-1}}),now=new Date(),end=new Date(sub?.periodEndsAt&&new Date(sub.periodEndsAt)>now?sub.periodEndsAt:now);
+      if(body.action==='recordPayment'){const day=end.getUTCDate();end.setUTCDate(1);end.setUTCMonth(end.getUTCMonth()+months);end.setUTCDate(Math.min(day,new Date(Date.UTC(end.getUTCFullYear(),end.getUTCMonth()+1,0)).getUTCDate()))}else if(days)end.setUTCDate(end.getUTCDate()+days);else if(!sub)end.setUTCDate(end.getUTCDate()+30);
+      const status=body.action==='recordPayment'?'active':body.status,subscriptionId=sub?._id||new ObjectId(),changes={plan:plan.slug,status,billingInterval:body.interval||sub?.billingInterval||'monthly',periodEndsAt:end,trialEndsAt:status==='trialing'?end:null,updatedAt:now};
+      await database.collection('subscriptions').updateOne({_id:subscriptionId},{$set:changes,$setOnInsert:{clinicId:body.clinicId,createdAt:now}},{upsert:true,session});
+      if(body.action==='recordPayment')await database.collection('platformInvoices').insertOne({clinicId:body.clinicId,subscriptionId:String(subscriptionId),invoiceNumber:`SAAS-${new ObjectId()}`,amount:Math.round(amount*100)/100,currency:plan.currency||'PKR',status:'paid',paidAt:now,paymentReference:String(body.paymentReference).slice(0,100),billingPeriodStart:now.toISOString().slice(0,10),billingPeriodEnd:end.toISOString().slice(0,10),createdAt:now},{session});
+      await database.collection('auditLogs').insertOne({clinicId:body.clinicId,actorId:String(user._id),action:body.action,module:'subscriptions',createdAt:now},{session});
+    })}catch(e){return fail(e.message,409)}finally{await session.endSession()}return ok({success:true});
+  }
   if (body.action === 'approvePlan') {
     const reference = String(body.paymentReference || '').trim().slice(0, 100);
     const pending = await database.collection('planRequests').findOne({ clinicId: body.clinicId, status: 'pending' });
@@ -55,7 +75,7 @@ export async function PATCH(request) {
     } catch (error) { return fail(error.message, 409); } finally { await session.endSession(); }
     return ok({ success: true });
   }
-  if (!['active','suspended'].includes(body.status)) return fail('Invalid status');
+  if (!['active','inactive','suspended'].includes(body.status)) return fail('Invalid status');
   await database.collection('clinics').updateOne({ _id: new ObjectId(body.clinicId) }, { $set: { status: body.status, updatedAt: new Date() } });
   return ok({ success: true });
 }

@@ -1,3 +1,4 @@
+import {localInstant} from './clinic-time.mjs';
 import { ObjectId } from 'mongodb';
 
 // Fixed collection/field allowlists: model output can never become a Mongo query.
@@ -25,10 +26,11 @@ export async function readClinicData(database, clinicId, args) {
   if(args.outstanding!==undefined&&typeof args.outstanding!=='boolean')throw new Error('Invalid balance filter');
   if(args.outstanding&&args.dataset!=='invoices')throw new Error('Outstanding filter is for invoices only');
   const offset=args.offset??0;if(!Number.isInteger(offset)||offset<0||offset>200)throw new Error('Offset must be 0–200');
+  const clinic=await database.collection('clinics').findOne({_id:new ObjectId(clinicId)},{projection:{timezone:1,currency:1}}),timezone=clinic?.timezone||'Asia/Karachi',currency=clinic?.currency||'PKR';
   const [collection,dateField,fields,path]=datasets[args.dataset],q={clinicId};
   if(args.from||args.to){q[dateField]={};if(dateField==='createdAt'){
-    if(args.from)q[dateField].$gte=new Date(args.from+'T00:00:00+05:00');
-    if(args.to)q[dateField].$lt=new Date(new Date(args.to+'T00:00:00+05:00').getTime()+86400000);
+    if(args.from)q[dateField].$gte=localInstant(args.from,'00:00',timezone);
+    if(args.to)q[dateField].$lte=new Date(localInstant(args.to,'23:59:59',timezone).getTime()+999);
   }else{if(args.from)q[dateField].$gte=args.from;if(args.to)q[dateField].$lte=args.to}}
   if(args.status)q.status=args.status;
   if(args.patientId){if(args.dataset==='patients')q._id=new ObjectId(args.patientId);else q.patientId=args.patientId}
@@ -42,6 +44,6 @@ export async function readClinicData(database, clinicId, args) {
   const patientIds=[...new Set(rows.map(r=>r.patientId).filter(x=>typeof x==='string'&&ObjectId.isValid(x)))];
   const patients=patientIds.length?await database.collection('patients').find({clinicId,_id:{$in:patientIds.map(id=>new ObjectId(id))}},{projection:{name:1}}).toArray():[];
   const records=rows.map(r=>({...r,_id:String(r._id),...(r.patientId?{patientName:patients.find(p=>String(p._id)===r.patientId)?.name||'Patient unavailable'}:{}),url:args.dataset==='patients'?`${path}/${r._id}`:path}));
-  return {dataset:args.dataset,filters:args,dateField,timezone:'Asia/Karachi',currency:'PKR',totals,offset,shown:records.length,hasMore:offset+records.length<totals.count,records,url:path,checkedAt:new Date().toISOString()};
+  return {dataset:args.dataset,filters:args,dateField,timezone,currency,totals,offset,shown:records.length,hasMore:offset+records.length<totals.count,records,url:path,checkedAt:new Date().toISOString()};
 }
 

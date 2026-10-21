@@ -45,6 +45,7 @@ export async function currentUser() {
     const doctor = await database.collection('doctors').findOne({ userId: String(user._id), clinicId: user.clinicId });
     user.doctorId = doctor ? String(doctor._id) : null;
   }
+  if(user?.clinicId){const clinic=await database.collection('clinics').findOne({_id:new ObjectId(user.clinicId)},{projection:{currency:1,timezone:1}});user.currency=clinic?.currency||'PKR';user.timezone=clinic?.timezone||'Asia/Karachi';}
   return user || null;
 }
 

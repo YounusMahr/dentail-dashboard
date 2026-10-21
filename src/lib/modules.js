@@ -4,12 +4,12 @@ export const modules = {
     ['whatsappConsent','Patient agreed to WhatsApp notifications','checkbox'], ['preferredLanguage','Message language','select:en,ur'], ['gender', 'Gender', 'select:male,female,other'], ['bloodGroup', 'Blood group', 'text'], ['address', 'Address', 'text'], ['medicalHistory', 'Medical history', 'textarea']
   ] },
   services: { title: 'Dental services', roles: ['clinic_admin', 'receptionist', 'dentist'], writeRoles: ['clinic_admin'], fields: [
-    ['name', 'Name', 'text', true], ['category', 'Category', 'text'], ['description', 'Description', 'textarea'], ['standardFee', 'Fee (PKR)', 'number', true],
+    ['name', 'Name', 'text', true], ['category', 'Category', 'select:Preventive,Restorative,Endodontics,Periodontics,Prosthodontics,Oral Surgery,Orthodontics,Cosmetic,General'], ['description', 'Description', 'textarea'], ['standardFee', 'Fee (PKR)', 'number', true],
     ['durationMinutes', 'Duration (minutes)', 'number', true], ['active', 'Active', 'checkbox']
   ] },
-  doctors: { title: 'Doctors', roles: ['clinic_admin', 'receptionist', 'dentist'], writeRoles: ['clinic_admin'], fields: [
+  doctors: { title: 'Doctor & chair roster', roles: ['clinic_admin', 'receptionist', 'dentist'], writeRoles: ['clinic_admin'], fields: [
     ['name', 'Name', 'text', true], ['email', 'Email', 'email', true], ['phone', 'Phone', 'tel'], ['specialization', 'Specialization', 'text'],
-    ['consultationFee', 'Consultation fee', 'number'], ['slotMinutes', 'Slot duration', 'number'], ['workingDays', 'Working days (comma separated)', 'text'],
+    ['consultationFee', 'Consultation fee', 'number'], ['slotMinutes', 'Slot duration', 'number'], ['specialtyBio','Doctor profile bio','textarea'], ['chairName','Assigned chair','text'], ['workingDays', 'Working days (comma separated)', 'text'],
     ['startTime', 'Start time', 'time'], ['endTime', 'End time', 'time'], ['breakStart', 'Break start', 'time'], ['breakEnd', 'Break end', 'time'], ['active', 'Active', 'checkbox']
   ] },
   treatments: { title: 'Treatments', roles: ['clinic_admin', 'receptionist', 'dentist'], writeRoles: ['clinic_admin', 'dentist'], fields: [

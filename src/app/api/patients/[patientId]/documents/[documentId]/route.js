@@ -15,7 +15,7 @@ export async function GET(request, { params }) {
   const { patientId, documentId } = await params, result = await find(await currentUser(), patientId, documentId);
   if (!result) return fail('Not found', 404);
   const stream = new GridFSBucket(result.database, { bucketName: 'clinicalFiles' }).openDownloadStream(result.document.fileId);
-  return new Response(Readable.toWeb(stream), { headers: { 'Content-Type': result.document.mimeType, 'Content-Disposition': `attachment; filename="${result.document.fileName.replace(/["\r\n]/g, '')}"`, 'Cache-Control': 'private, no-store' } });
+  return new Response(Readable.toWeb(stream), { headers: { 'Content-Type': result.document.mimeType, 'Content-Disposition': `${new URL(request.url).searchParams.get('view')==='1'?'inline':'attachment'}; filename="${result.document.fileName.replace(/["\r\n]/g, '')}"`, 'Cache-Control': 'private, no-store', 'X-Content-Type-Options':'nosniff', 'Content-Security-Policy':"sandbox; default-src 'none'" } });
 }
 export async function DELETE(request, { params }) {
   const user = await currentUser(), { patientId, documentId } = await params;

@@ -20,6 +20,7 @@ export async function ensureIndexes() {
       { clinicId: 1, doctorId: 1, appointmentDate: 1, startsAt: 1 },
       { unique: true, partialFilterExpression: { status: { $in: ['pending', 'confirmed', 'checked_in', 'in_progress', 'completed', 'no_show'] } } }
     ),
+    database.collection('appointments').createIndex({clinicId:1,chairName:1,appointmentDate:1,startsAt:1},{unique:true,partialFilterExpression:{chairName:{$gt:''},status:{$in:['pending','confirmed','checked_in','in_progress','completed']}}}),
     database.collection('patients').createIndex({ clinicId: 1, phone: 1 }),
     database.collection('invoices').createIndex({ clinicId: 1, invoiceNumber: 1 }, { unique: true }),
   ]).catch(error=>{indexesPromise=undefined;throw error});
