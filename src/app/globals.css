@@ -169,8 +169,8 @@
   .clinic-nav-links a{color:#e2f2ea;font-size:12px;font-weight:500;transition:color .18s}
   .clinic-nav-links a:hover{color:#ffffff}
   
-  .clinic-hero-v2{position:relative;background-size:cover;background-position:center;padding:145px 0 95px;color:#fff;overflow:hidden}
-  .clinic-hero-v2::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(10,38,31,0.95) 0%,rgba(14,58,47,0.85) 55%,rgba(10,38,31,0.55) 100%);z-index:1}
+  .clinic-hero-v2{position:relative;background-size:cover;background-position:right center;padding:145px 0 95px;color:#fff;overflow:hidden}
+  .clinic-hero-v2::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,38,31,0.95) 0%,rgba(14,58,47,0.82) 48%,rgba(10,38,31,0.2) 100%);z-index:1}
   .clinic-hero-v2-inner{position:relative;z-index:2;max-width:680px}
   .clinic-hero-v2 .pill{background:rgba(255,255,255,0.14);color:#a7ecd5;border:1px solid rgba(255,255,255,0.22);margin-bottom:18px}
   .clinic-hero-v2 h1{font-size:clamp(32px,4.5vw,56px);line-height:1.2;letter-spacing:-1.5px;color:#fff;margin:0 0 18px;font-weight:600}
