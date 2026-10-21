@@ -1,3 +1,4 @@
+import { publicProfile } from '@/lib/clinic-profile.mjs';
 import { ObjectId } from 'mongodb';
 import { db, ensureIndexes } from '@/lib/db';
 import { fail, ok, string } from '@/lib/http';
@@ -17,7 +18,7 @@ export async function GET(request, { params }) {
     database.collection('services').find({ clinicId, active: { $ne: false } }, { projection: { name: 1, description: 1, standardFee: 1, durationMinutes: 1 } }).toArray()
   ]);
   const pages=await database.collection('clinicPages').find({clinicId,published:{$ne:null}},{projection:{slug:1,'published.title':1,'published.sortOrder':1}}).toArray();
-  return ok({ pages:pages.map(p=>({slug:p.slug,title:p.published.title,sortOrder:p.published.sortOrder||0})).sort((a,b)=>a.sortOrder-b.sortOrder), clinic: { name: clinic.name, slug: clinic.slug, phone: clinic.phone, address: clinic.address, emergencyNotice: clinic.emergencyNotice }, doctors, services });
+  return ok({ pages:pages.map(p=>({slug:p.slug,title:p.published.title,sortOrder:p.published.sortOrder||0})).sort((a,b)=>a.sortOrder-b.sortOrder), clinic: publicProfile(clinic), doctors, services });
 }
 
 export async function POST(request, { params }) {
@@ -50,3 +51,4 @@ export async function POST(request, { params }) {
     return ok({ confirmationId: String(appointment.insertedId) }, 201);
   } catch (error) { return fail(error.code === 11000 ? 'This slot was just booked. Please choose another.' : 'Booking failed', 409); }
 }
+

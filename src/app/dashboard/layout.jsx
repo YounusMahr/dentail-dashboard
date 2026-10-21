@@ -3,6 +3,8 @@ import { currentUser } from '@/lib/auth';
 import WorkspaceShell from './workspace-shell';
 import { db } from '@/lib/db';
 import { ObjectId } from 'mongodb';
+import { brandingUrls } from '@/lib/clinic-profile.mjs';
+export async function generateMetadata(){const user=await currentUser();if(!user?.clinicId||!ObjectId.isValid(user.clinicId))return {};const clinic=await(await db()).collection('clinics').findOne({_id:new ObjectId(user.clinicId)},{projection:{name:1,faviconVersion:1}});return clinic?{title:`${clinic.name} | DentalCare`,icons:brandingUrls(clinic).faviconUrl?{icon:brandingUrls(clinic).faviconUrl}:{icon:'/dentalcare-icon.svg'}}:{}}
 export default async function DashboardLayout({ children }) {
   const user = await currentUser();
   if (!user) redirect('/login');
@@ -10,7 +12,7 @@ export default async function DashboardLayout({ children }) {
   if (user.role === 'clinic_admin') links.push(['AI Assistant','/dashboard/ai'],['Reports','/dashboard/reports'],['Staff','/dashboard/staff'],['Clinic settings','/dashboard/settings'],['Subscription','/dashboard/subscription']);
   if (user.role === 'platform_owner') links.splice(0, links.length, ['Platform','/dashboard/platform']);
   links.push(['My account','/dashboard/account']);
-  const clinic=user.clinicId&&ObjectId.isValid(user.clinicId)?await (await db()).collection('clinics').findOne({_id:new ObjectId(user.clinicId)},{projection:{name:1}}):null;
-  return <WorkspaceShell links={links} user={{name:user.name,role:user.role}} clinicName={clinic?.name||'DentalCare Platform'}>{children}</WorkspaceShell>;
+  const clinic=user.clinicId&&ObjectId.isValid(user.clinicId)?await (await db()).collection('clinics').findOne({_id:new ObjectId(user.clinicId)},{projection:{name:1,logoVersion:1}}):null;
+  return <WorkspaceShell links={links} user={{name:user.name,role:user.role}} clinicName={clinic?.name||'DentalCare Platform'} clinicLogo={clinic?brandingUrls(clinic).logoUrl:null}>{children}</WorkspaceShell>;
 }
 

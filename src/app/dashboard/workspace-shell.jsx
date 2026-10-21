@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Sparkles, LayoutDashboard, CalendarDays, Users, Stethoscope, Receipt, BellRing, UserRound, HeartPulse, ChartNoAxesCombined, Settings2, CreditCard, ShieldCheck, Search, Menu, X, ChevronRight, LogOut, ArrowUpRight } from 'lucide-react';
 import Brand from '@/components/brand';
 const icons = { 'AI Assistant': Sparkles, 'Care workspace': HeartPulse, Dashboard: LayoutDashboard, Appointments: CalendarDays, Patients: Users, Treatments: HeartPulse, Invoices: Receipt, 'Follow-ups': BellRing, Doctors: Stethoscope, Services: ShieldCheck, Reports: ChartNoAxesCombined, Staff: Users, 'Clinic settings': Settings2, Subscription: CreditCard, Platform: LayoutDashboard, 'My account': UserRound };
-export default function WorkspaceShell({ children, links, user, clinicName }) {
+export default function WorkspaceShell({ children, links, user, clinicName, clinicLogo }) {
   const pathname = usePathname(), [open,setOpen] = useState(false), [search,setSearch] = useState(''), [loggingOut,setLoggingOut] = useState(false);
   useEffect(()=>{setOpen(false);setSearch('')},[pathname]);
   const current = [...links].sort((a,b)=>b[1].length-a[1].length).find(([,url])=>pathname===url||pathname.startsWith(url+'/'))?.[0] || 'Workspace';
@@ -19,7 +19,7 @@ export default function WorkspaceShell({ children, links, user, clinicName }) {
     {open&&<button className="sidebar-overlay" aria-label="Close navigation" onClick={()=>setOpen(false)}/>}
     <aside className={`workspace-sidebar ${open?'is-open':''}`}>
       <div className="sidebar-brand"><Link href={user.role==='platform_owner'?'/dashboard/platform':'/dashboard'}><Brand/></Link><button className="icon-button mobile-only" aria-label="Close navigation" onClick={()=>setOpen(false)}><X size={20}/></button></div>
-      <div className="workspace-clinic"><span className="clinic-mark"><Stethoscope size={19}/></span><div><strong>{clinicName}</strong><small>{user.role==='platform_owner'?'Platform workspace':'Clinic workspace'}</small></div><ShieldCheck size={15} className="text-emerald-600 shrink-0"/></div>
+      <div className="workspace-clinic">{clinicLogo?<img src={clinicLogo} alt="Clinic logo"/>:<span className="clinic-mark"><Stethoscope size={19}/></span>}<div><strong>{clinicName}</strong><small>{user.role==='platform_owner'?'Platform workspace':'Clinic workspace'}</small></div><ShieldCheck size={15} className="text-emerald-600 shrink-0"/></div>
       <nav aria-label="Main navigation"><p className="nav-caption">WORKSPACE</p>{mainLinks.map(renderLink)}{manageLinks.length>0&&<p className="nav-caption mt-7!">MANAGEMENT</p>}{manageLinks.map(renderLink)}</nav>
       <div className="sidebar-bottom"><div className="care-note"><HeartPulse size={21}/><strong>Better care. Every day.</strong><p>Your team, patients and practice. Connected.</p></div><button className="logout-button" onClick={logout} disabled={loggingOut}><LogOut size={18}/>{loggingOut?'Signing out…':'Sign out'}</button><span className="sidebar-version">DentalCare · Practice workspace</span></div>
     </aside>
@@ -31,4 +31,5 @@ export default function WorkspaceShell({ children, links, user, clinicName }) {
     </div>
   </div>;
 }
+
 
