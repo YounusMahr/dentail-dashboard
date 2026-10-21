@@ -3,9 +3,13 @@ const DEFAULT_API_KEY = 'hermes-evolution-key-2026';
 const DEFAULT_INSTANCE = 'hremes';
 
 export function getEvolutionConfig() {
-  const baseUrl = (process.env.EVOLUTION_API_URL || DEFAULT_URL).replace(/\/+$/, '');
-  const apiKey = process.env.EVOLUTION_API_KEY || DEFAULT_API_KEY;
-  const defaultInstance = process.env.EVOLUTION_DEFAULT_INSTANCE || DEFAULT_INSTANCE;
+  let baseUrl = (process.env.EVOLUTION_API_URL || DEFAULT_URL).trim().replace(/\/+$/, '');
+  let apiKey = (process.env.EVOLUTION_API_KEY || DEFAULT_API_KEY).trim();
+  // Protect against masked keys like 'hermes...2026' accidentally pasted from chat/docs
+  if (!apiKey || apiKey.includes('...') || apiKey === 'hermes...2026') {
+    apiKey = DEFAULT_API_KEY;
+  }
+  const defaultInstance = (process.env.EVOLUTION_DEFAULT_INSTANCE || DEFAULT_INSTANCE).trim();
   return { baseUrl, apiKey, defaultInstance };
 }
 
@@ -21,25 +25,31 @@ export async function evolutionFetch(path, options = {}) {
   const url = `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
   const headers = {
     'apiKey': apiKey,
+    'apikey': apiKey,
     'Content-Type': 'application/json',
     ...(options.headers || {})
   };
 
-  const res = await fetch(url, {
-    ...options,
-    headers,
-    cache: 'no-store'
-  });
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers,
+      cache: 'no-store',
+      signal: AbortSignal.timeout(12000)
+    });
 
-  const contentType = res.headers.get('content-type') || '';
-  let data;
-  if (contentType.includes('application/json')) {
-    data = await res.json().catch(() => null);
-  } else {
-    data = await res.text().catch(() => '');
+    const contentType = res.headers.get('content-type') || '';
+    let data;
+    if (contentType.includes('application/json')) {
+      data = await res.json().catch(() => null);
+    } else {
+      data = await res.text().catch(() => '');
+    }
+
+    return { ok: res.ok, status: res.status, data };
+  } catch (err) {
+    return { ok: false, status: 503, data: { message: err.message }, error: err.message };
   }
-
-  return { ok: res.ok, status: res.status, data };
 }
 
 export async function getLiveConnection(instanceName) {
@@ -60,7 +70,7 @@ export async function getLiveConnection(instanceName) {
     let meta = null;
     if (instancesRes.ok && Array.isArray(instancesRes.data)) {
       meta = instancesRes.data.find(i => i.name === target || i.id === target) || null;
-      if (!stateRes.ok && meta?.connectionStatus) {
+      if (meta?.connectionStatus) {
         state = meta.connectionStatus;
       }
     }
@@ -97,22 +107,40 @@ export async function createOrConnectInstance({ instanceName, qrcode = true, num
   const target = (instanceName || defaultInstance).trim().replace(/\s+/g, '_');
   const normalizedNumber = number ? cleanPhone(number) : '';
 
-  // 1. Try connect first
+  // 1. Check if target is already connected and open
+  const live = await getLiveConnection(target);
+  if (live.connected) {
+    return {
+      success: true,
+      instanceName: target,
+      base64: null,
+      code: null,
+      pairingCode: null,
+      state: 'open',
+      alreadyConnected: true,
+      profileName: live.profileName,
+      ownerNumber: live.ownerNumber
+    };
+  }
+
+  // 2. Try connect first
   const connectPath = `/instance/connect/${encodeURIComponent(target)}${normalizedNumber ? `?number=${normalizedNumber}` : ''}`;
   const connectAttempt = await evolutionFetch(connectPath);
 
   if (connectAttempt.ok && connectAttempt.data) {
+    const isStateOpen = connectAttempt.data.instance?.state === 'open';
     return {
       success: true,
       instanceName: target,
       base64: connectAttempt.data.base64 || null,
       code: connectAttempt.data.code || null,
       pairingCode: connectAttempt.data.pairingCode || null,
-      state: connectAttempt.data.instance?.state || 'connecting'
+      state: connectAttempt.data.instance?.state || (isStateOpen ? 'open' : 'connecting'),
+      alreadyConnected: isStateOpen
     };
   }
 
-  // 2. If not found or needed, create instance
+  // 3. If instance doesn't exist yet, create it
   const createBody = {
     instanceName: target,
     qrcode: true,
@@ -126,7 +154,25 @@ export async function createOrConnectInstance({ instanceName, qrcode = true, num
   });
 
   if (!createAttempt.ok) {
-    throw new Error(createAttempt.data?.response?.message || createAttempt.data?.message || 'Failed to create instance');
+    const rawMsg = createAttempt.data?.response?.message || createAttempt.data?.message || '';
+    const errMsg = Array.isArray(rawMsg) ? rawMsg.join(', ') : String(rawMsg || 'Failed to create instance');
+
+    // If instance is already created, try connecting again to get its QR or state
+    if (errMsg.toLowerCase().includes('already in use') || errMsg.toLowerCase().includes('already exists')) {
+      const retryConnect = await evolutionFetch(connectPath);
+      if (retryConnect.ok && retryConnect.data) {
+        return {
+          success: true,
+          instanceName: target,
+          base64: retryConnect.data.base64 || null,
+          code: retryConnect.data.code || null,
+          pairingCode: retryConnect.data.pairingCode || null,
+          state: retryConnect.data.instance?.state || 'connecting',
+          alreadyConnected: retryConnect.data.instance?.state === 'open'
+        };
+      }
+    }
+    throw new Error(errMsg);
   }
 
   return {
@@ -135,7 +181,8 @@ export async function createOrConnectInstance({ instanceName, qrcode = true, num
     base64: createAttempt.data?.qrcode?.base64 || createAttempt.data?.base64 || null,
     code: createAttempt.data?.qrcode?.code || createAttempt.data?.code || null,
     pairingCode: createAttempt.data?.qrcode?.pairingCode || createAttempt.data?.pairingCode || null,
-    state: createAttempt.data?.instance?.state || 'created'
+    state: createAttempt.data?.instance?.state || 'created',
+    alreadyConnected: false
   };
 }
 
