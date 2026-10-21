@@ -3,13 +3,13 @@ const DEFAULT_API_KEY = 'hermes-evolution-key-2026';
 const DEFAULT_INSTANCE = 'hremes';
 
 export function getEvolutionConfig() {
-  let baseUrl = (process.env.EVOLUTION_API_URL || DEFAULT_URL).trim().replace(/\/+$/, '');
-  let apiKey = (process.env.EVOLUTION_API_KEY || DEFAULT_API_KEY).trim();
+  let baseUrl = (process.env.EVOLUTION_API_URL || DEFAULT_URL).trim().replace(/^["']|["']$/g, '').replace(/\/+$/, '');
+  let apiKey = (process.env.EVOLUTION_API_KEY || DEFAULT_API_KEY).trim().replace(/^["']|["']$/g, '');
   // Protect against masked keys like 'hermes...2026' accidentally pasted from chat/docs
   if (!apiKey || apiKey.includes('...') || apiKey === 'hermes...2026') {
     apiKey = DEFAULT_API_KEY;
   }
-  const defaultInstance = (process.env.EVOLUTION_DEFAULT_INSTANCE || DEFAULT_INSTANCE).trim();
+  const defaultInstance = (process.env.EVOLUTION_DEFAULT_INSTANCE || DEFAULT_INSTANCE).trim().replace(/^["']|["']$/g, '');
   return { baseUrl, apiKey, defaultInstance };
 }
 
