@@ -93,7 +93,7 @@ export async function saveMessagingSettings(clinicId, body) {
   );
 }
 
-export async function enqueue({ clinicId, patientId, type, eventKey, values = [], sourceCollection, sourceId, sourceFingerprint }, session, autoDispatch = true) {
+export async function enqueue({ clinicId, patientId, type, eventKey, values = [], sourceCollection, sourceId, sourceFingerprint }, session, autoDispatch = false) {
   if (!messageTypes.includes(type)) throw new Error('Unknown notification type');
   const database = await db();
   const patient = await database.collection('patients').findOne({ _id: new ObjectId(patientId), clinicId }, { session });
@@ -231,7 +231,7 @@ export async function dispatchPendingNotifications(clinicId) {
   return { processed: pending.length, sent, failed };
 }
 
-export async function queueReminders(clinicId, autoDispatch = true) {
+export async function queueReminders(clinicId, autoDispatch = false) {
   const database = await db(), now = today(), tomorrow = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }), q = clinicId ? { clinicId } : {};
   const appointments = await database.collection('appointments').find({ ...q, appointmentDate: { $gte: now }, status: { $in: ['pending', 'confirmed'] } }).limit(2000).toArray();
 

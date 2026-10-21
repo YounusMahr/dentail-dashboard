@@ -63,7 +63,7 @@ export async function POST(request,{params}) {
     if(section==='automation'){
       if(user.role!=='clinic_admin')return fail('Admin access required',403);
       if(body.action==='configure'){await saveMessagingSettings(user.clinicId,body);return ok({success:true})}
-      if(body.action==='queue'){return ok(await queueReminders(user.clinicId,true))}
+      if(body.action==='queue'){return ok(await queueReminders(user.clinicId,false))}
       if(body.action==='connect'){
         const res=await createOrConnectInstance({instanceName:body.instanceName,number:body.number});
         if(body.instanceName)await saveMessagingSettings(user.clinicId,{instanceName:body.instanceName});

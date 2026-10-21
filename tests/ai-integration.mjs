@@ -8,6 +8,7 @@ import sharp from 'sharp';
 import {cleanClinicProfile} from '../src/lib/clinic-profile.mjs';
 import {searchClinic} from '../src/lib/search.mjs';
 import {cleanPatientPhoto} from '../src/lib/patient-photo.mjs';
+import {defaultWebsite} from '../src/lib/clinic-website.mjs';
 const name='dentalcare_ai_test_'+Date.now(),client=new MongoClient(process.env.MONGODB_URI,{serverSelectionTimeoutMS:10000});
 let server,passed=0;const origin='http://localhost:3119';
 const test=(condition,label)=>{assert(condition,label);console.log('PASS '+(++passed)+': '+label)};
@@ -117,6 +118,17 @@ try{
  test((await req('/api/reports',{cookie:reception})).status===403,'Financial reports remain admin only');
  const filtered=await(await req('/api/records/treatments?search=Synthetic&service='+serviceId+'&page=1',{cookie:admin})).json();test(filtered.total===1&&filtered.records[0]._id===treatmentBody.id,'Treatment directory filters and pagination');
  const ledger=await(await req('/api/patients/'+patientId,{cookie:admin})).json();test(ledger.payments.some(p=>p.invoiceId===upfrontBody.id),'Patient profile includes receipt ledger');
+ const website=structuredClone(defaultWebsite);website.theme='ocean';website.accent='#137ca7';website.pages.home.sections[0].title='A clinic website made for QA';website.pages.home.sections.find(s=>s.type==='benefits').items[0].title='Flexible clinic care';
+ test((await req('/api/clinic-settings/website',{cookie:reception,method:'PATCH',body:website})).status===403,'Website editor limited to clinic admin');
+ test((await req('/api/clinic-settings/website',{cookie:admin,method:'PATCH',body:website})).status===200,'Website draft saves');
+ const draftHtml=await(await req('/clinic/account-qa?preview=1',{cookie:admin})).text();test(draftHtml.includes('A clinic website made for QA')&&draftHtml.includes('Flexible clinic care'),'Draft preview renders edited sections');
+ test((await req('/clinic/account-qa?preview=1')).status===404,'Draft preview rejects anonymous visitors');
+ test((await req('/clinic/account-qa?preview=1',{cookie:other})).status===404,'Draft preview rejects another clinic');
+ const beforePublish=await(await req('/clinic/account-qa')).text();test(!beforePublish.includes('A clinic website made for QA'),'Draft changes stay off the live site');
+ test((await req('/api/clinic-settings/website',{cookie:admin,body:{action:'publish',website}})).status===200,'Website publishes');
+ const liveHtml=await(await req('/clinic/account-qa')).text();test(liveHtml.includes('A clinic website made for QA')&&liveHtml.includes('QA restoration')&&liveHtml.includes('Dr. Schedule One'),'Published site uses live clinic services and team');
+ const servicesHtml=await(await req('/clinic/account-qa/services')).text();test(servicesHtml.includes('QA restoration'),'Services page renders catalog');
+ test((await req('/clinic/account-qa/about-us')).status===200&&(await req('/clinic/account-qa/contact-us')).status===200,'About and contact pages render');
  if(process.argv.includes('--live')){
    const response=await req('/api/ai',{cookie:admin,body:{question:'What is the all-time outstanding invoice balance? Use the database totals. Answer in one sentence.'}});
    assert.equal(response.status,200);const events=(await response.text()).trim().split('\n').map(s=>JSON.parse(s));const done=events.find(e=>e.type==='done');assert(done,JSON.stringify(events));test(done.messages[1].sources.some(s=>s.totals.balanceAmount===1500),'LIVE Groq tool call and answer');test(/1[,]?500/.test(done.messages[1].content),'LIVE answer agrees with exact totals');
