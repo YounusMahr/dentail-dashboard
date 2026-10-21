@@ -14,6 +14,7 @@ export async function GET(request,{params}) {
   const user=await currentUser(),{section}=await params;
   if(!user?.clinicId||!teamRoles.includes(user.role)||(!careAllowed(section,user)&&!viewExtras.includes(section)))return fail('Unauthorized',403);
   const database=await db(),q={clinicId:user.clinicId};
+  const recordId=new URL(request.url).searchParams.get('record');if(recordId&&!/^[a-f\d]{24}$/i.test(recordId))return fail('Invalid record');
   if(section==='automation'){
     if(user.role!=='clinic_admin')return fail('Admin access required',403);
     const settings=await publicMessagingSettings(user.clinicId);
@@ -40,7 +41,7 @@ export async function GET(request,{params}) {
     return ok({records:rows,options,waiting,labAlerts:labs.filter(l=>!['received','fitted','cancelled'].includes(l.status)&&l.dueDate<=today()).length});
   }
   if(section==='portal')return ok({options,records:await database.collection('portalAccess').find(q,{projection:{tokenHash:0}}).sort({createdAt:-1}).limit(100).toArray()});
-  let records=section==='plans'?enrichedPlans:section==='sessions'?enrichedSessions:section==='labs'?labs:await database.collection(careCollections[section]).find(q).sort({createdAt:-1}).limit(300).toArray();
+  let records=section==='plans'?enrichedPlans:section==='sessions'?enrichedSessions:section==='labs'?labs:await database.collection(careCollections[section]).find({...q,...(recordId?{_id:new ObjectId(recordId)}:{})}).sort({createdAt:-1}).limit(300).toArray();
   if(user.role==='dentist'&&['plans','sessions','prescriptions'].includes(section))records=records.filter(x=>x.doctorId===user.doctorId);
   if(section==='waitlist'){
     records=records.map(w=>({...w,matches:appointments.filter(a=>a.status==='cancelled'&&matchesSlot(w,a,minutes(a.endsAt)-minutes(a.startsAt))).slice(0,5)}));

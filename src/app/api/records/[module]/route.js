@@ -1,3 +1,4 @@
+import { ObjectId } from 'mongodb';
 import { currentUser, sameOrigin } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { fail, ok } from '@/lib/http';
@@ -22,6 +23,7 @@ export async function GET(request, { params }) {
     else filter.name = { $regex: pattern, $options: 'i' };
   }
   const query = new URL(request.url).searchParams;
+  const recordId=query.get('record');if(recordId){if(!/^[a-f\d]{24}$/i.test(recordId))return fail('Invalid record');filter._id=new ObjectId(recordId)}
   if (module === 'appointments') {
     const date = query.get('date'), status = query.get('status');
     if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) filter.appointmentDate = date;

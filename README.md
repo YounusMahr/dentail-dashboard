@@ -74,3 +74,11 @@ Verification: `node --env-file=.env.local tests/ai-integration.mjs --live` creat
 Clinic fields: name, bio, phone, email, WhatsApp number, street address, city, country, postal code, HTTPS website, public opening hours and patient notice. Opening hours are display text; doctor schedules continue to control appointment availability. Public details appear on the clinic booking page.
 
 Logo/favicon uploads accept static PNG, JPEG and WebP up to 2 MB. The server decodes and re-encodes images, strips metadata, limits pixel dimensions and stores the resulting PNG in MongoDB. Only clinic admins can upload/remove them. Logos appear in the workspace clinic badge and public page headers; favicons appear on the clinic's dashboard and public pages. Image changes save immediately; text changes use Save changes. Public branding endpoints expose only the selected image for active clinics.
+
+## Universal search and patient photos
+
+The top bar searches clinic records by name, phone/email, invoice number, date/status and record ID, grouping results by module. Patient-name searches also find their linked appointments, sessions, plans, invoices and lab work. Results respect clinic and role permissions, show up to five matches per group, and open the exact record (with a Show all records option). Type at least two characters; refine broad searches for more precise results.
+
+Patient add/edit forms include an optional PNG/JPEG/WebP profile image (2 MB maximum). Images are decoded, resized to 160×160 and re-encoded as WebP with metadata removed. They stay in authenticated patient records and appear in the patient list and profile. They are not exposed through a public photo endpoint or AI tools.
+
+AI Assistant is the first admin navigation item. Its layout uses the available viewport height; the composer stays visible and the conversation scrolls internally. Responsive layouts retain universal search on smaller screens.

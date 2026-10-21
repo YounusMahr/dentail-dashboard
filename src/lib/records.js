@@ -1,3 +1,4 @@
+import { cleanPatientPhoto } from './patient-photo.mjs';
 import { ObjectId } from 'mongodb';
 import { modules } from './modules';
 import { db, ensureIndexes } from './db';
@@ -91,6 +92,7 @@ export async function cleanRecord(module, input, user, existing = null) {
     record.totalAmount = money(subtotal - discount); record.paidAmount = 0; record.balanceAmount = record.totalAmount; record.status = 'unpaid';
     record.invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
   }
+  if(module==='patients'&&Object.hasOwn(input,'photoDataUrl'))record.photoDataUrl=await cleanPatientPhoto(input.photoDataUrl);
   await ensureIndexes();
   return record;
 }

@@ -1,6 +1,6 @@
 'use client';
 import { useEffect,useState,useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams,useSearchParams,useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Plus,ArrowUpRight,Check,FileText,FlaskConical,CalendarDays,Wallet,Copy,RefreshCw,Search,HeartPulse,Globe,Users,MessageSquare,ArrowRight,Printer,Clock3,Activity } from 'lucide-react';
 import { careSections,clinicalRoles } from '@/lib/care-schema';
@@ -11,17 +11,18 @@ const tabs=[['plans','Plans',HeartPulse],['sessions','Sessions',CalendarDays],['
 const money=n=>Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:2});
 const blankMedicine=()=>({name:'',strength:'',dose:'',frequency:'',duration:'',instructions:''});
 export default function CareWorkspace(){
+ const selectedRecord=useSearchParams().get('record')||'',router=useRouter();
  const {section}=useParams(),schema=careSections[section];
  const [data,setData]=useState(null),[user,setUser]=useState(null),[error,setError]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[search,setSearch]=useState(''),[patientFilter,setPatientFilter]=useState(''),[edit,setEdit]=useState(null),[form,setForm]=useState({}),[meds,setMeds]=useState([blankMedicine()]),[detail,setDetail]=useState(null),[payment,setPayment]=useState(null),[portalPatient,setPortalPatient]=useState(''),[portalLink,setPortalLink]=useState(''),[templates,setTemplates]=useState({}),[templateType,setTemplateType]=useState('appointment_confirmation'),[templateLanguage,setTemplateLanguage]=useState('en'),[costs,setCosts]=useState(null),[paymentKey,setPaymentKey]=useState(''),[templateName,setTemplateName]=useState('');
  const close=useCallback(()=>{setEdit(null);setDetail(null);setPayment(null);setCosts(null)},[]);
- const load=useCallback(async()=>{try{const [r,u]=await Promise.all([fetch(`/api/care/${section}`),fetch('/api/auth/me')]);const d=await r.json();if(!r.ok)throw new Error(d.error);setData(d);setUser((await u.json()).user);if(d.settings)setTemplates(d.settings.templates)}catch(e){setError(e.message)}},[section]);
+ const load=useCallback(async()=>{try{const [r,u]=await Promise.all([fetch(`/api/care/${section}${selectedRecord?`?record=${selectedRecord}`:''}`),fetch('/api/auth/me')]);const d=await r.json();if(!r.ok)throw new Error(d.error);setData(d);setUser((await u.json()).user);if(d.settings)setTemplates(d.settings.templates)}catch(e){setError(e.message)}},[section,selectedRecord]);
  useEffect(()=>{setData(null);setError('');setSearch('');setPatientFilter(new URLSearchParams(window.location.search).get('patient')||'');close();load()},[load,close]);
  async function action(body,success='Updated successfully'){setBusy(true);setError('');try{const r=await fetch(`/api/care/${section}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),d=await r.json();if(!r.ok)throw new Error(d.error);setMessage(success);await load();return d}catch(e){setError(e.message);return null}finally{setBusy(false)}}
  function openEdit(record={}){setError('');setTemplateName('');setEdit(record);setForm({...record,language:record.language||'bilingual',doctorId:record.doctorId||(user?.role==='dentist'?user.doctorId:''),sortOrder:record.sortOrder||0});setMeds(record.medications?.map(x=>({...x}))||[blankMedicine()])}
  async function save(e){e.preventDefault();const result=await action({...form,id:edit?._id,action:'save',...(section==='prescriptions'?{medications:meds}:{})},'Saved successfully');if(result)setEdit(null)}
  const options=data?.options||{},name=(type,id)=>options[type]?.find(x=>x._id===id)?.name||options[type]?.find(x=>x._id===id)?.title||'—';
  const clinical=clinicalRoles.includes(user?.role),canWrite=section!=='plans'||clinical;
- const records=(data?.records||[]).filter(r=>(!patientFilter||r.patientId===patientFilter)&&[r.title,r.labName,r.status,name('patients',r.patientId)].join(' ').toLowerCase().includes(search.toLowerCase()));
+ const records=(data?.records||[]).filter(r=>(!selectedRecord||r._id===selectedRecord)&&(!patientFilter||r.patientId===patientFilter)&&[r.title,r.labName,r.status,name('patients',r.patientId)].join(' ').toLowerCase().includes(search.toLowerCase()));
  const title=schema?.title||({portal:'Patient portal access',insights:'Practice insights',automation:'Message templates'})[section]||'Care workspace';
  function pay(record){setPayment(record);setPaymentKey(crypto.randomUUID());setError('')}
  async function submitPayment(e){e.preventDefault();setBusy(true);setError('');const body=Object.fromEntries(new FormData(e.currentTarget));try{const invoiceId=payment.invoiceId;const r=await fetch(`/api/invoices/${invoiceId}/payments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,idempotencyKey:paymentKey,sessionId:payment.sessionPayment?payment._id:null})}),d=await r.json();if(!r.ok)throw new Error(d.error);setPayment(null);setMessage('Payment recorded. Receipt is available under Invoices.');await load()}catch(e){setError(e.message)}finally{setBusy(false)}}
@@ -30,6 +31,7 @@ export default function CareWorkspace(){
  const notifyError=error&&<div className="error" role="alert">{error}</div>;
  return <>
  <div className="top"><div><div className="eyebrow">CONNECTED DENTAL CARE</div><h1>{title}</h1><p className="muted">{schema?.subtitle||({portal:'Give patients a private, expiring link to their own records.',insights:'See unfinished care, lab delays and recorded treatment margins.',automation:'Prepare bilingual messages now. Connect your chosen provider later.'})[section]}</p></div><div className="row"><button className="icon-button" aria-label="Refresh" onClick={load}><RefreshCw size={17}/></button>{schema&&canWrite&&<button onClick={()=>openEdit()}><Plus size={16}/>Add {section==='website'?'page':section==='prescriptions'?'prescription':section==='sessions'?'session':section==='plans'?'plan':section==='labs'?'lab case':'patient'}</button>}</div></div>
+ {selectedRecord&&<div className="notice-panel">Showing the record selected in search. <button className="secondary" onClick={()=>router.push(`/dashboard/care/${section}`)}>Show all records</button></div>}
  <nav className="care-tabs" aria-label="Care workspace">{tabs.filter(([key])=>(!['website','automation','insights'].includes(key)||user?.role==='clinic_admin')&&(key!=='prescriptions'||clinical)).map(([key,label,Icon])=><Link href={`/dashboard/care/${key}`} key={key} className={key===section?'active':''}><Icon size={16}/>{label}</Link>)}</nav>
  {notifyError}{message&&<div role="status" className="success">{message}</div>}
  {!data&&!error&&<div className="skeleton h-64"/>}
