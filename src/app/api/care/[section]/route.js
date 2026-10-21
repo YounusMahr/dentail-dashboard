@@ -7,7 +7,8 @@ import { writeBlock } from '@/lib/clinic-access';
 import { careAllowed,careIndexes,cleanCare,related,audit } from '@/lib/care';
 import { careCollections,clinicalRoles,teamRoles } from '@/lib/care-schema';
 import { medications,money,today,matchesSlot,minutes } from '@/lib/care-validation.mjs';
-import { enqueue,queueReminders,publicMessagingSettings,saveMessagingSettings } from '@/lib/messaging';
+import { enqueue,queueReminders,publicMessagingSettings,saveMessagingSettings,dispatchPendingNotifications,dispatchSingleNotification } from '@/lib/messaging';
+import { createOrConnectInstance, disconnectInstance, getLiveConnection, sendEvolutionText } from '@/lib/evolution';
 
 const viewExtras=['insights','portal','automation'];
 export async function GET(request,{params}) {
@@ -18,7 +19,7 @@ export async function GET(request,{params}) {
   if(section==='automation'){
     if(user.role!=='clinic_admin')return fail('Admin access required',403);
     const settings=await publicMessagingSettings(user.clinicId);
-    return ok({settings,records:await database.collection('notificationOutbox').find(q,{projection:{recipientPhone:0}}).sort({createdAt:-1}).limit(100).toArray()});
+    return ok({settings,records:await database.collection('notificationOutbox').find(q).sort({createdAt:-1}).limit(100).toArray()});
   }
   const [patients,doctors,services,plans,sessions,appointments,payments,labs]=await Promise.all([
     database.collection('patients').find(q,{projection:{name:1,phone:1,whatsappConsent:1,preferredLanguage:1}}).sort({name:1}).toArray(),
@@ -62,7 +63,32 @@ export async function POST(request,{params}) {
     if(section==='automation'){
       if(user.role!=='clinic_admin')return fail('Admin access required',403);
       if(body.action==='configure'){await saveMessagingSettings(user.clinicId,body);return ok({success:true})}
-      if(body.action==='queue'){return ok(await queueReminders(user.clinicId))}
+      if(body.action==='queue'){return ok(await queueReminders(user.clinicId,true))}
+      if(body.action==='connect'){
+        const res=await createOrConnectInstance({instanceName:body.instanceName,number:body.number});
+        if(body.instanceName)await saveMessagingSettings(user.clinicId,{instanceName:body.instanceName});
+        return ok(res);
+      }
+      if(body.action==='disconnect'){
+        const res=await disconnectInstance(body.instanceName);
+        return ok(res);
+      }
+      if(body.action==='status'){
+        const live=await getLiveConnection(body.instanceName);
+        return ok(live);
+      }
+      if(body.action==='dispatch-pending'){
+        const res=await dispatchPendingNotifications(user.clinicId);
+        return ok(res);
+      }
+      if(body.action==='send-single'){
+        const res=await dispatchSingleNotification(body.id,user.clinicId);
+        return ok(res);
+      }
+      if(body.action==='send-test'){
+        const res=await sendEvolutionText(body.number,body.text||'Hello from Dental Care Clinic! WhatsApp automation is connected and live.',body.instanceName);
+        return ok({success:true,res});
+      }
       throw new Error('Unknown action');
     }
     if(section==='portal'){
