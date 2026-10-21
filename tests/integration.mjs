@@ -8,7 +8,7 @@ assert.equal(matchesSlot({status:'waiting',doctorId:'a',earliestDate:'2026-01-01
 const dbName=`dentalcare_test_${Date.now()}_${randomBytes(3).toString('hex')}`,port=3117,origin=`http://localhost:${port}`;
 const client=await new MongoClient(process.env.MONGODB_URI).connect(),database=client.db(dbName);let server,serverLog='',passed=0;
 const password='Temporary-QA-'+randomBytes(8).toString('hex'),salt=randomBytes(16).toString('hex'),hash=`scrypt:${salt}:${scryptSync(password,salt,64).toString('hex')}`;
-async function check(path,body,cookie,expected=200,method=body?'POST':'GET',token){const r=await fetch(origin+path,{method,headers:{Origin:origin,'Content-Type':'application/json',...(cookie?{Cookie:cookie}:{}),...(token?{Authorization:`Bearer ${token}`}:{})},...(body?{body:JSON.stringify(body)}:{})});const type=r.headers.get('content-type')||'';const data=type.includes('json')?await r.json():await r.text();assert.equal(r.status,expected,`${method} ${path}: ${typeof data==='string'?data.slice(0,200):JSON.stringify(data)}`);passed++;return {data,response:r}}
+async function check(path,body,cookie,expected=200,method=body?'POST':'GET',token){const r=await fetch(origin+path,{method,headers:{Origin:origin,'Content-Type':'application/json',...(cookie?{Cookie:cookie}:{}),...(token?{Authorization:`Bearer ${token}`}:{})},...(body?{body:JSON.stringify(body)}:{})});const type=r.headers.get('content-type')||'';const data=type.includes('json')?await r.json():await r.text();assert.equal(r.status,expected,`${method} ${path}: ${typeof data==='string'?data.slice(0,200):JSON.stringify(data)}`);passed++;console.log(`OK ${passed}: ${method} ${path}`);return {data,response:r}}
 async function login(email){const {response}=await check('/api/auth/login',{email,password},null);return response.headers.get('set-cookie').split(';')[0]}
 try{
  const clinicId=new ObjectId(),otherClinicId=new ObjectId(),patientId=new ObjectId(),otherPatientId=new ObjectId(),doctorId=new ObjectId(),adminId=new ObjectId(),dentistId=new ObjectId();
@@ -77,6 +77,7 @@ try{
  const {data:insights}=await check('/api/care/insights',null,admin);assert.equal(insights.records[0].netCollected,7500);
  for(const section of ['plans','sessions','labs','waitlist','website','automation','portal','insights','prescriptions'])await check('/dashboard/care/'+section,null,admin);
  await check('/api/stats',null,admin);
+ if(process.argv.includes('--preview')){console.log('BROWSER QA: '+origin+' | admin@qa.invalid | '+password);console.log('Send Enter to clean up the temporary test database.');await new Promise(resolve=>process.stdin.once('data',resolve))}
  console.log(`PASS: ${passed} authenticated HTTP checks, money/date validation, tenant isolation, payment replay, session limits, lab readiness, prescription locking, portal privacy, page publication and waitlist booking.`);
 }catch(e){console.error(e);console.error(serverLog.slice(-3000));process.exitCode=1}
 finally{server?.kill();if(!dbName.startsWith('dentalcare_test_'))throw new Error('Unsafe test database cleanup');await database.dropDatabase();await client.close()}

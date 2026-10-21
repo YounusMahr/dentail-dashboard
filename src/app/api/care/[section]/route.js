@@ -84,6 +84,7 @@ export async function POST(request,{params}) {
     if(existing&&user.role==='dentist'&&existing.doctorId&&existing.doctorId!==user.doctorId)throw new Error('Record belongs to another dentist');
     const action=body.action||'save';
     if(action==='save'){
+      if(existing&&body.version!==undefined&&body.version!==existing.version)throw new Error('This record changed since you opened it. Refresh before editing.');
       if(existing&&section==='prescriptions'&&existing.status==='issued')throw new Error('Issued prescription is read-only. Create a revision.');
       const record=await cleanCare(section,body,user,existing);
       if(section==='prescriptions'){record.medications=medications(body.medications);record.status='draft'}
@@ -164,6 +165,7 @@ export async function POST(request,{params}) {
     }
     const allowed={plans:['completed','declined'],sessions:['scheduled','completed','cancelled'],labs:['ordered','in_progress','received','fitted','remake','cancelled'],waitlist:['waiting','cancelled']};
     if(action==='status'&&allowed[section]?.includes(body.status)){
+      if(section==='plans'&&body.status==='completed'&&!['accepted','in_progress'].includes(existing.status))throw new Error('Only an accepted treatment plan can be completed');
       if(section==='sessions'&&body.status==='completed'){
         if(!clinicalRoles.includes(user.role))throw new Error('Only a dentist or clinic admin can complete a clinical session');
         if(await database.collection('labCases').findOne({...q,sessionId:String(existing._id),status:{$nin:['received','fitted','cancelled']}}))throw new Error('Receive the linked lab work before completing this session');

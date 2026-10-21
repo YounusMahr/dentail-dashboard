@@ -1,28 +1,68 @@
-# DentalCare Next.js
+# DentalCare — Independent dental practice workspace
 
-This is a Next.js and MongoDB dental clinic dashboard.
+A Next.js, Tailwind CSS and MongoDB application for dental clinics. It is not connected to E-mareez or another practice-management service.
 
-## Run locally
+## Run
 
-1. Copy `.env.example` to `.env.local` and enter a MongoDB Atlas connection string.
-2. Run `npm install` and `npm run dev` in the project root.
-3. Open `http://localhost:3000`.
+Use Node.js 22+. Copy `.env.example` to `.env.local`, set the MongoDB connection and database name, then run:
 
-The configured Atlas database already contains the migrated clinic records. Existing accounts can sign in with their current passwords. New passwords use scrypt. Users should change seeded/demo passwords from **My account**.
+```sh
+npm install
+npm run dev
+```
 
-## Implemented workflows
+For production: `npm run build`, then `npm start`. Configure HTTPS and database backups with your hosting provider. `.env.local` is ignored by Git.
 
-- Multi-clinic data scoping, sessions, roles, clinic registration, public clinic page, doctor slots and booking.
-- Patient directory, profile history and private JPEG/PNG/PDF documents stored in MongoDB GridFS.
-- Appointment scheduling and status changes, doctor shifts and breaks, services, FDI tooth selection, treatment notes and printable treatment summaries.
-- Multi-item invoices, partial payments, balances, printable invoices and receipts.
-- Follow-ups, manual WhatsApp links, clinic reports, staff, settings, subscription requests and platform approval/suspension.
-- Optional reminder endpoint at `POST /api/reminders/run`, protected by `REMINDER_CRON_SECRET` and using the configured WhatsApp credentials. A scheduler must call it once daily.
+## Main workflows
 
-## External setup still required
+- **Care workspace → Treatment plans:** choose patient, dentist, adult/primary FDI teeth, agreed fee, patient explanation and aftercare. Accepting a draft creates one treatment invoice. Accepted financial details are locked.
+- **Sessions:** allocate the treatment fee across visits, optionally link matching appointments and track clinical completion independently from payment. Session allocations cannot exceed the agreed fee. A pending linked lab case blocks session completion.
+- **Invoices:** consultation, checkup and treatment fee categories, dentist fees, custom or service items, discounts, partial payments and A4 invoices/receipts. Advance payments reduce the overall balance; session payments also identify the visit. Payment request keys prevent accidental duplicate submissions. Money uses two-decimal validation and atomic database transactions.
+- **Prescriptions:** editable English/Urdu/bilingual drafts, structured medicine rows, reusable templates, self-hosted Urdu font, A4 print/PDF via the browser, doctor review/issuance and immutable issued versions with explicit revisions. Browser voice dictation can append draft notes, subject to browser support and microphone permission; no automatic diagnosis or medication selection.
+- **Lab work:** laboratory, due date, tooth numbers, plan/session links, cost, ordered/in-progress/received/fitted/remake statuses and status history.
+- **Waiting list:** availability dates/times, preferred dentist and required duration. Matching cancelled slots can be offered through the patient portal. Accepting an offer atomically books an available slot; offers do not reserve a slot before acceptance.
+- **Patient access:** create/revoke seven-day private links. Patients can see accepted plans, aftercare, session progress, invoices, payment receipts and issued prescriptions, manage future appointments and accept waiting-list offers. Access links are hashed in the database and removed from browser URL fragments after opening.
+- **Clinic website:** editable pages, descriptions, images and navigation order; administrator-only draft preview and separate published snapshots. Public pages live under `/clinic/<clinic-slug>/<page-slug>` and link to online booking.
+- **Practice insights:** overdue sessions, accepted plans without sessions, lab delays, patient waiting counts and collections less recorded lab/material/provider costs. This is not an accounting profit statement and excludes unrecorded overheads.
+- **Patient profile:** tooth-specific treatment/plan/file history. Uploaded clinical files can be linked to FDI tooth numbers and remain behind clinic authentication.
+- Existing patient directory, appointments, doctor schedules, treatments, reports, clinic staff/settings and platform subscription workflows remain available.
 
-- The WhatsApp Cloud credentials and a scheduler are needed for automated reminders. Meta template approval and delivery webhooks are not configured here.
-- Subscription charges are verified outside the app. A platform owner enters a payment reference when approving a plan request. There is no integrated card payment gateway.
-- Configure HTTPS, backups and production hosting before live clinical use.
+## WhatsApp: templates only for now
 
-The app stores its data in MongoDB collections.
+API integration and live sending are intentionally deferred at the owner's request. There is no Whapi, Meta or E-mareez connection.
+
+`Care workspace → Message templates` provides editable English/Urdu text for booking confirmations, appointment/session reminders, follow-ups, receipts and waiting-list offers. Variables: `{{patient}}`, `{{clinic}}`, `{{details}}`. Preview uses sample values.
+
+Only patients with recorded WhatsApp consent and a usable phone number produce pending notifications. Booking and payment events prepare records automatically. **Prepare reminders** scans upcoming visits and due follow-ups. Repeated scans deduplicate events. Status `pending_provider` means prepared, not sent or delivered. A future provider integration must recheck consent, source-record status, templates and expiry before sending.
+
+An optional scheduler can call `POST /api/reminders/run` with `Authorization: Bearer <REMINDER_CRON_SECRET>` to prepare reminders. It never sends messages in this version. Manual WhatsApp links in existing screens still open a draft for staff to send themselves.
+
+## Verification
+
+```sh
+npm run build
+node --env-file=.env.local tests/integration.mjs
+```
+
+The integration check creates a uniquely named `dentalcare_test_*` database on the configured cluster, starts an isolated server on port 3117, verifies real HTTP workflows and removes only that test database. The MongoDB account must be allowed to create/drop test databases. It does not modify the configured clinic database. Add `--preview` to pause with synthetic QA accounts for browser review; send Enter in the test terminal to finish cleanup.
+
+## External services / limits
+
+- WhatsApp provider credentials and sending are deferred, not simulated.
+- Payments are recorded by staff; online card charging is not connected.
+- Clinical dictation depends on browser speech support and may use the browser vendor's speech service. Clinicians review and issue all clinical content.
+- Clinic websites use the application's domain and clinic URL. DNS/custom-domain provisioning is a separate hosting task.
+- Dental photograph: [Ozkan Guner on Unsplash](https://unsplash.com/es/fotos/un-dentista-trabajando-en-un-paciente-AWqHc49SU-c). Urdu font license is in `public/fonts/OFL.txt`.
+
+## AI Assistant (Groq)
+
+Clinic administrators can open **AI Assistant** in the sidebar. The server uses `openai/gpt-oss-120b` through Groq, with bounded read-only tools for clinic appointments, patients, doctors, invoices, payments, treatment plans, sessions, lab cases and follow-ups. Put `GROQ_API_KEY` in `.env.local` (or the deployment secret store) and restart the server. Never prefix this key with `NEXT_PUBLIC_`; rotate keys shared in chat.
+
+- English, Urdu and Roman Urdu questions; optional date preferences.
+- Conversations stored in MongoDB, scoped to both clinic and administrator; last 50 listed. Each conversation supports up to 40 question/answer pairs and can be deleted.
+- Exact financial totals are computed in MongoDB across all matches, with paginated record samples and expandable query evidence. Payments are receipts by creation date; invoice balances are current balances, not historical snapshots. All date filtering uses Asia/Karachi.
+- Questions, recent conversation context and selected record fields are sent to Groq. Contact details, medical histories, credentials and prescription contents are excluded from tools. Staff should avoid entering unnecessary sensitive details into chat. Review provider terms and applicable clinic data policies before production use.
+- Ten questions per administrator per minute, one active request per chat, bounded tool rounds, provider timeouts and friendly error states. No automatic messages, clinical decisions or record changes.
+- AI text can still be mistaken. Check the linked records and the independent source totals. Token-by-token output is not used during tool orchestration; the chat shows live progress and then the completed answer.
+
+Verification: `node --env-file=.env.local tests/ai-integration.mjs --live` creates and removes an isolated synthetic test database. `--live` makes a small real Groq request; omit it for database/security checks without provider usage. `--preview` holds the temporary server for browser QA until Enter is sent. It never seeds production data.

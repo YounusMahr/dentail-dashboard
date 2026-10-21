@@ -25,6 +25,7 @@ export const modules = {
     ['appointmentDate', 'Date', 'date', true], ['startsAt', 'Time', 'time', true], ['status', 'Status', 'select:pending,confirmed,checked_in,in_progress,completed,cancelled,no_show'], ['patientNotes', 'Notes', 'textarea']
   ] },
   invoices: { title: 'Invoices', roles: ['clinic_admin', 'receptionist', 'dentist'], writeRoles: ['clinic_admin', 'receptionist'], fields: [
+    ['feeType','Fee category','select:consultation,checkup,treatment'], ['doctorId','Dentist','doctor'],
     ['patientId', 'Patient', 'patient', true], ['description', 'Item description', 'text', true], ['quantity', 'Quantity', 'number', true],
     ['unitPrice', 'Unit price', 'number', true], ['discountAmount', 'Discount', 'number'], ['dueDate', 'Due date', 'date']
   ] },

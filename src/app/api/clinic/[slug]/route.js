@@ -27,7 +27,7 @@ export async function POST(request, { params }) {
   const body = await request.json().catch(() => ({})), database = await db(), clinicId = String(clinic._id);
   const name = string(body.patientName, 150), phone = string(body.patientPhone, 30);
   const date = string(body.appointmentDate, 10), time = string(body.startsAt, 5);
-  if (!name || !phone || !validDate(date) || !validTime(time) || !ObjectId.isValid(body.doctorId)) return fail('Complete name, phone, doctor, date and time');
+  if (!name || !phone || !validDate(date) || !validTime(time) || new Date(`${date}T${time}:00+05:00`)<=new Date() || !ObjectId.isValid(body.doctorId)) return fail('Complete name, phone, doctor, date and time');
   const doctor = await database.collection('doctors').findOne({ _id: new ObjectId(body.doctorId), clinicId, active: { $ne: false } });
   if (!doctor) return fail('Doctor is unavailable');
   const day = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`)).toLowerCase();

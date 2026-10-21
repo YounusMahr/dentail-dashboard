@@ -2,9 +2,9 @@
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, CalendarDays, Users, Stethoscope, Receipt, BellRing, UserRound, HeartPulse, ChartNoAxesCombined, Settings2, CreditCard, ShieldCheck, Search, Menu, X, ChevronRight, LogOut, ArrowUpRight } from 'lucide-react';
+import { Sparkles, LayoutDashboard, CalendarDays, Users, Stethoscope, Receipt, BellRing, UserRound, HeartPulse, ChartNoAxesCombined, Settings2, CreditCard, ShieldCheck, Search, Menu, X, ChevronRight, LogOut, ArrowUpRight } from 'lucide-react';
 import Brand from '@/components/brand';
-const icons = { 'Care workspace': HeartPulse, Dashboard: LayoutDashboard, Appointments: CalendarDays, Patients: Users, Treatments: HeartPulse, Invoices: Receipt, 'Follow-ups': BellRing, Doctors: Stethoscope, Services: ShieldCheck, Reports: ChartNoAxesCombined, Staff: Users, 'Clinic settings': Settings2, Subscription: CreditCard, Platform: LayoutDashboard, 'My account': UserRound };
+const icons = { 'AI Assistant': Sparkles, 'Care workspace': HeartPulse, Dashboard: LayoutDashboard, Appointments: CalendarDays, Patients: Users, Treatments: HeartPulse, Invoices: Receipt, 'Follow-ups': BellRing, Doctors: Stethoscope, Services: ShieldCheck, Reports: ChartNoAxesCombined, Staff: Users, 'Clinic settings': Settings2, Subscription: CreditCard, Platform: LayoutDashboard, 'My account': UserRound };
 export default function WorkspaceShell({ children, links, user, clinicName }) {
   const pathname = usePathname(), [open,setOpen] = useState(false), [search,setSearch] = useState(''), [loggingOut,setLoggingOut] = useState(false);
   useEffect(()=>{setOpen(false);setSearch('')},[pathname]);
@@ -31,3 +31,4 @@ export default function WorkspaceShell({ children, links, user, clinicName }) {
     </div>
   </div>;
 }
+

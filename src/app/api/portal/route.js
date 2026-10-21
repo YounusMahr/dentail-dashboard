@@ -49,7 +49,7 @@ export async function POST(request){
     try{await session.withTransaction(async()=>{
       if(body.action==='accept-offer'){
         const offer=await database.collection('waitingOffers').findOneAndUpdate({...q,_id:new ObjectId(body.id),status:'offered',expiresAt:{$gt:new Date()}},{$set:{status:'accepted',acceptedAt:new Date()}},{session,returnDocument:'after'});
-        if(!offer||offer.appointmentDate<today())throw new Error('This offer has expired');
+        if(!offer||new Date(`${offer.appointmentDate}T${offer.startsAt}:00+05:00`)<=new Date())throw new Error('This offer has expired');
         const waiting=await database.collection('waitingList').updateOne({...q,_id:new ObjectId(offer.waitingId),status:'waiting'},{$set:{status:'booked'}},{session});if(!waiting.modifiedCount)throw new Error('Waiting-list request is no longer available');
         const record=await cleanRecord('appointments',{patientId:q.patientId,doctorId:offer.doctorId,serviceId:offer.serviceId,appointmentDate:offer.appointmentDate,startsAt:offer.startsAt,status:'confirmed'},actor);
         await database.collection('appointments').insertOne({...record,...q,createdAt:new Date()},{session});
@@ -57,7 +57,7 @@ export async function POST(request){
         const appointment=await database.collection('appointments').findOne({...q,_id:new ObjectId(body.id),status:{$in:['pending','confirmed']},appointmentDate:{$gte:today()}},{session});
         if(!appointment)throw new Error('This appointment can no longer be changed online');
         let changes={status:body.action==='cancel'?'cancelled':'confirmed'};
-        if(body.action==='reschedule'){if(body.appointmentDate<today())throw new Error('Choose a future date');changes=await cleanRecord('appointments',{appointmentDate:body.appointmentDate,startsAt:body.startsAt,status:'confirmed'},actor,appointment)}
+        if(body.action==='reschedule'){if(new Date(`${body.appointmentDate}T${body.startsAt}:00+05:00`)<=new Date())throw new Error('Choose a future date');changes=await cleanRecord('appointments',{appointmentDate:body.appointmentDate,startsAt:body.startsAt,status:'confirmed'},actor,appointment)}
         await database.collection('appointments').updateOne({...q,_id:appointment._id},{$set:{...changes,updatedAt:new Date()}},{session});
         if(body.action==='reschedule')await database.collection('careSessions').updateMany({...q,appointmentId:body.id,status:{$in:['planned','scheduled']}},{$set:{scheduledDate:body.appointmentDate}},{session});
         if(body.action==='cancel')await database.collection('careSessions').updateMany({...q,appointmentId:body.id,status:{$in:['planned','scheduled']}},{$set:{status:'planned',appointmentId:''}},{session});

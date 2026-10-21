@@ -18,7 +18,7 @@ export async function GET(request, { params }) {
   const duration = Number(doctor.slotMinutes || 30), slots = [];
   for (let start = toMin(doctor.startTime || '10:00'); start + duration <= toMin(doctor.endTime || '20:00'); start += duration) {
     const time = `${String(Math.floor(start / 60)).padStart(2, '0')}:${String(start % 60).padStart(2, '0')}`;
-    if (!booked.has(time) && !(doctor.breakStart && doctor.breakEnd && start < toMin(doctor.breakEnd) && start + duration > toMin(doctor.breakStart))) slots.push(time);
+    if (new Date(`${date}T${time}:00+05:00`)>new Date() && !booked.has(time) && !(doctor.breakStart && doctor.breakEnd && start < toMin(doctor.breakEnd) && start + duration > toMin(doctor.breakStart))) slots.push(time);
   }
   return ok({ slots });
 }

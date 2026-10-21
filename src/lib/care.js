@@ -6,8 +6,9 @@ export function careAllowed(section,user,write=false) {
   const schema=careSections[section];
   return !!schema&&!!user?.clinicId&&(schema.admin?user.role==='clinic_admin':schema.clinical?clinicalRoles.includes(user.role):teamRoles.includes(user.role))&&(!write||!['plans'].includes(section)||clinicalRoles.includes(user.role));
 }
+let indexesPromise;
 export async function careIndexes(database) {
-  await Promise.all([
+  if (!indexesPromise) indexesPromise=Promise.all([
     database.collection('notificationOutbox').createIndex({clinicId:1,eventKey:1},{unique:true}),
     database.collection('portalAccess').createIndex({tokenHash:1},{unique:true}),
     database.collection('portalAccess').createIndex({expiresAt:1},{expireAfterSeconds:0}),
@@ -15,7 +16,8 @@ export async function careIndexes(database) {
     database.collection('payments').createIndex({clinicId:1,idempotencyKey:1},{unique:true,partialFilterExpression:{idempotencyKey:{$type:'string'}}}),
     database.collection('careSessions').createIndex({clinicId:1,planId:1}),
     database.collection('waitingOffers').createIndex({clinicId:1,waitingId:1,appointmentId:1},{unique:true}),
-  ]);
+  ]).catch(error=>{indexesPromise=undefined;throw error});
+  return indexesPromise;
 }
 export async function related(database,collection,id,clinicId,session) {
   if(!ObjectId.isValid(id||''))throw new Error(`Choose a valid ${collection}`);
