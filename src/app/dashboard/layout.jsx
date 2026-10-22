@@ -4,7 +4,7 @@ import WorkspaceShell from './workspace-shell';
 import { db } from '@/lib/db';
 import { ObjectId } from 'mongodb';
 import { brandingUrls } from '@/lib/clinic-profile.mjs';
-export async function generateMetadata(){const user=await currentUser();if(!user?.clinicId||!ObjectId.isValid(user.clinicId))return {};const clinic=await(await db()).collection('clinics').findOne({_id:new ObjectId(user.clinicId)},{projection:{name:1,faviconVersion:1}});return clinic?{title:`${clinic.name} | DentalCare`,icons:brandingUrls(clinic).faviconUrl?{icon:brandingUrls(clinic).faviconUrl}:{icon:'/dentalcare-icon.svg'}}:{}}
+export async function generateMetadata(){const user=await currentUser();if(!user?.clinicId||!ObjectId.isValid(user.clinicId))return {};const clinic=await(await db()).collection('clinics').findOne({_id:new ObjectId(user.clinicId)},{projection:{name:1,faviconVersion:1}});return clinic?{title:`${clinic.name} | DentalCare`,icons:{icon:brandingUrls(clinic).faviconUrl||'/dentalcare-icon.svg',apple:'/pwa/apple-touch-icon.png'}}:{}}
 export default async function DashboardLayout({ children }) {
   const user = await currentUser();
   if (!user) redirect('/login');

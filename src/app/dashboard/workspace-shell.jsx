@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Sparkles, LayoutDashboard, CalendarDays, Users, Stethoscope, Receipt, BellRing, UserRound, HeartPulse, ChartNoAxesCombined, Settings2, CreditCard, ShieldCheck, Search, Menu, X, ChevronRight, LogOut, ArrowUpRight, Globe2 } from 'lucide-react';
 import Brand from '@/components/brand';
 import UniversalSearch from '@/components/universal-search';
+import PwaInstallPrompt from '@/components/pwa-install-prompt';
 const icons = { 'AI Assistant': Sparkles, 'Care workspace': HeartPulse, Dashboard: LayoutDashboard, Appointments: CalendarDays, Patients: Users, Treatments: HeartPulse, Invoices: Receipt, 'Follow-ups': BellRing, Doctors: Stethoscope, Services: ShieldCheck, 'Website studio':Globe2, Reports: ChartNoAxesCombined, Staff: Users, 'Clinic settings': Settings2, Subscription: CreditCard, Platform: LayoutDashboard, 'My account': UserRound };
 export default function WorkspaceShell({ children, links, user, clinicName, clinicSlug, clinicLogo }) {
   const pathname = usePathname(), [open,setOpen] = useState(false), [search,setSearch] = useState(''), [loggingOut,setLoggingOut] = useState(false);
@@ -30,6 +31,7 @@ export default function WorkspaceShell({ children, links, user, clinicName, clin
       </header>
       <main id="workspace-content" className="main">{children}<footer className="workspace-footer"><span>DentalCare <span className="text-slate-300 mx-2">/</span> Made for better patient care</span><span className="flex items-center gap-1.5"><ShieldCheck size={14}/> Your clinic workspace</span></footer></main>
     </div>
+    <PwaInstallPrompt visible={pathname === '/dashboard'}/>
   </div>;
 }
 
