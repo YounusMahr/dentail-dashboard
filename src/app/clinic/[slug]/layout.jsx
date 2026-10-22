@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { brandingUrls } from '@/lib/clinic-profile.mjs';
+import './clinic-site.css';
 export async function generateMetadata({params}){
   try {
     const {slug}=await params,clinic=await(await db()).collection('clinics').findOne({slug,status:'active'},{projection:{name:1,bio:1,faviconVersion:1}});

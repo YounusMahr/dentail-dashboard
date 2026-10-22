@@ -4,8 +4,9 @@ import { ObjectId } from 'mongodb';
 import { db, ensureIndexes } from '@/lib/db';
 import { fail, ok, string } from '@/lib/http';
 import { sameOrigin } from '@/lib/auth';
-import { enqueue } from '@/lib/messaging';
 import { chairSlots } from '@/lib/availability.mjs';
+import { bookVisit } from '@/lib/visit-booking';
+import { pakistanMobile } from '@/lib/pakistan-phone.mjs';
 
 async function clinicFor(slug) { return (await db()).collection('clinics').findOne({ slug, status: 'active' }); }
 function validDate(value,timezone) { return /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= clinicDay(timezone); }
@@ -28,7 +29,8 @@ export async function POST(request, { params }) {
   const clinic = await clinicFor((await params).slug);
   if (!clinic) return fail('Clinic not found', 404);
   const body = await request.json().catch(() => ({})), database = await db(), clinicId = String(clinic._id);
-  const name = string(body.patientName, 150), phone = string(body.patientPhone, 30);
+  const name = string(body.patientName, 150);
+  let phone;try{phone=pakistanMobile(body.patientPhone)}catch{return fail('Enter a valid Pakistani mobile number')}
   const date = string(body.appointmentDate, 10), time = string(body.startsAt, 5);
   if (!name || !phone || !validDate(date,clinic.timezone) || !validTime(time) || localInstant(date,time,clinic.timezone)<=new Date() || !ObjectId.isValid(body.doctorId)) return fail('Complete name, phone, doctor, date and time');
   const doctor = await database.collection('doctors').findOne({ _id: new ObjectId(body.doctorId), clinicId, active: { $ne: false } });
@@ -46,13 +48,9 @@ export async function POST(request, { params }) {
     if (!ObjectId.isValid(body.serviceId) || !await database.collection('services').findOne({ _id: new ObjectId(body.serviceId), clinicId, active: { $ne: false } })) return fail('Invalid service');
     serviceId = body.serviceId;
   }
-  await ensureIndexes();
-  const patient = await database.collection('patients').findOneAndUpdate({ clinicId, phone }, { $setOnInsert: { clinicId, name, phone, email: string(body.patientEmail), whatsappConsent:body.whatsappConsent===true, preferredLanguage:body.preferredLanguage==='ur'?'ur':'en', createdAt: new Date() } }, { upsert: true, returnDocument: 'after' });
   try {
-    const end = start + duration;
-    const appointment = await database.collection('appointments').insertOne({ clinicId, patientId: String(patient._id), doctorId: body.doctorId, chairName:doctor.chairName||'', serviceId, appointmentDate: date, startsAt: time, endsAt: `${String(Math.floor(end / 60)).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`, status: 'confirmed', patientNotes: string(body.patientNotes), createdAt: new Date() });
-    try{await enqueue({clinicId,patientId:String(patient._id),type:'appointment_confirmation',eventKey:'booking:'+appointment.insertedId+':'+date+':'+time,values:[date,time],sourceCollection:'appointments',sourceId:String(appointment.insertedId),sourceFingerprint:date+' '+time})}catch{console.error('Booking saved; notification will be recovered by scheduler')}
-    return ok({ confirmationId: String(appointment.insertedId) }, 201);
-  } catch (error) { return fail(error.code === 11000 ? 'This slot was just booked. Please choose another.' : 'Booking failed', 409); }
+    const booking=await bookVisit({newPatient:{name,phone,email:string(body.patientEmail),whatsappConsent:body.whatsappConsent===true,emailConsent:body.emailConsent===true,preferredLanguage:body.preferredLanguage},doctorId:body.doctorId,serviceId,appointmentDate:date,startsAt:time,patientNotes:string(body.patientNotes)},{clinicId,currency:clinic.currency||'PKR',timezone:clinic.timezone||'Asia/Karachi',role:'clinic_admin'},{publicBooking:true});
+    return ok({confirmationId:booking.id},201);
+  } catch (error) { return fail(error.code === 11000 ? 'This slot was just booked. Please choose another.' : error.message, 409); }
 }
 

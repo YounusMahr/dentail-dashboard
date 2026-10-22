@@ -6,6 +6,7 @@ import { db, ensureIndexes } from './db';
 import { writeBlock } from './clinic-access';
 import { money } from './care-validation.mjs';
 import { chairDays } from './availability.mjs';
+import { pakistanMobile } from './pakistan-phone.mjs';
 
 const refCollections = { patientId: 'patients', doctorId: 'doctors', serviceId: 'services' };
 const numeric = new Set(['standardFee', 'durationMinutes', 'consultationFee', 'slotMinutes', 'quantity', 'unitPrice', 'discountAmount']);
@@ -97,6 +98,7 @@ export async function cleanRecord(module, input, user, existing = null, options 
     record.totalAmount = money(subtotal - discount); record.paidAmount = 0; record.balanceAmount = record.totalAmount; record.status = 'unpaid';
     record.invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
   }
+  if(module==='patients'&&record.phone)record.phone=pakistanMobile(record.phone);
   if(module==='patients'&&record.dateOfBirth&&(Number.isNaN(Date.parse(record.dateOfBirth))||new Date(record.dateOfBirth).toISOString().slice(0,10)!==record.dateOfBirth||record.dateOfBirth>new Date().toLocaleDateString('en-CA',{timeZone:user.timezone||'Asia/Karachi'})))throw new Error('Date of birth must be a valid date in the past');
   if(module==='follow-ups'&&record.status==='contacted')record.lastContactedAt=new Date();
   if(module==='appointments'&&record.status==='cancelled')record.cancellationReason=String(input.cancellationReason||'Cancelled by staff').slice(0,255);

@@ -9,6 +9,7 @@ import { careCollections,clinicalRoles,teamRoles } from '@/lib/care-schema';
 import { medications,money,today,matchesSlot,minutes } from '@/lib/care-validation.mjs';
 import { enqueue,queueReminders,publicMessagingSettings,saveMessagingSettings,dispatchPendingNotifications,dispatchSingleNotification } from '@/lib/messaging';
 import { createOrConnectInstance, disconnectInstance, getLiveConnection, sendEvolutionText } from '@/lib/evolution';
+import {queueEmail,dispatchEmailOutbox} from '@/lib/email-notifications';
 
 const viewExtras=['insights','portal','automation'];
 export async function GET(request,{params}) {
@@ -173,7 +174,9 @@ export async function POST(request,{params}) {
       medications(existing.medications);
       const changed=await collection.updateOne({...q,_id:existing._id,status:'draft'},{$set:{status:'issued',issuedAt:new Date(),issuedBy:String(user._id)},$inc:{version:1}});
       if(!changed.modifiedCount)throw new Error('Prescription is already issued');
-      await audit(database,user,section,existing._id,'issue');return ok({success:true});
+      await audit(database,user,section,existing._id,'issue');
+      try{if(await queueEmail({clinicId:user.clinicId,patientId:existing.patientId,type:'prescription_issued',eventKey:`prescription:${existing._id}:issued`,details:['Your dentist has issued a prescription. Contact the clinic for a private patient access link.'],sourceId:String(existing._id)}))await dispatchEmailOutbox(user.clinicId)}catch{console.error('Prescription issued; email notification remains pending')}
+      return ok({success:true});
     }
     if(section==='website'&&['publish','unpublish'].includes(action)){
       const {_id,published,status,version,...snapshot}=existing;
@@ -205,5 +208,5 @@ export async function POST(request,{params}) {
       return ok({success:true});
     }
     throw new Error('Unsupported action');
-  }catch(e){return fail(e.code===11000?'This record already exists':e.message,400)}
+  }catch(e){const message=e.code===11000?'This record already exists':e.message;return fail(message,section==='automation'&&/provider rejected|provider is unavailable/i.test(message)?502:section==='automation'&&/provider is not configured/i.test(message)?503:400)}
 }

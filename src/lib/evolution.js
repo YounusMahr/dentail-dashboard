@@ -1,16 +1,10 @@
-const DEFAULT_URL = 'http://145.241.106.128:8081';
-const DEFAULT_API_KEY = 'hermes-evolution-key-2026';
 const DEFAULT_INSTANCE = 'hremes';
 
 export function getEvolutionConfig() {
-  let baseUrl = (process.env.EVOLUTION_API_URL || DEFAULT_URL).trim().replace(/^["']|["']$/g, '').replace(/\/+$/, '');
-  let apiKey = (process.env.EVOLUTION_API_KEY || DEFAULT_API_KEY).trim().replace(/^["']|["']$/g, '');
-  // Protect against masked keys like 'hermes...2026' accidentally pasted from chat/docs
-  if (!apiKey || apiKey.includes('...') || apiKey === 'hermes...2026') {
-    apiKey = DEFAULT_API_KEY;
-  }
+  const baseUrl = (process.env.EVOLUTION_API_URL || '').trim().replace(/^["']|["']$/g, '').replace(/\/+$/, '');
+  const apiKey = (process.env.EVOLUTION_API_KEY || '').trim().replace(/^["']|["']$/g, '');
   const defaultInstance = (process.env.EVOLUTION_DEFAULT_INSTANCE || DEFAULT_INSTANCE).trim().replace(/^["']|["']$/g, '');
-  return { baseUrl, apiKey, defaultInstance };
+  return { baseUrl, apiKey, defaultInstance, configured:/^https?:\/\/[^\s]+$/i.test(baseUrl)&&Boolean(apiKey)&&!apiKey.includes('...') };
 }
 
 export function cleanPhone(raw) {
@@ -21,7 +15,8 @@ export function cleanPhone(raw) {
 }
 
 export async function evolutionFetch(path, options = {}) {
-  const { baseUrl, apiKey } = getEvolutionConfig();
+  const { baseUrl, apiKey, configured } = getEvolutionConfig();
+  if(!configured)return {ok:false,status:503,data:{message:'WhatsApp provider is not configured. Set EVOLUTION_API_URL and EVOLUTION_API_KEY on the server.'}};
   const url = `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
   const headers = {
     'apikey': apiKey,
@@ -52,14 +47,17 @@ export async function evolutionFetch(path, options = {}) {
 }
 
 export async function getLiveConnection(instanceName) {
-  const { defaultInstance } = getEvolutionConfig();
+  const { defaultInstance,configured } = getEvolutionConfig();
   const target = instanceName || defaultInstance;
+  if(!configured)return {connected:false,state:'unconfigured',instanceName:target,error:'WhatsApp provider is not configured on this server.',allInstances:[]};
 
   try {
     const [stateRes, instancesRes] = await Promise.all([
       evolutionFetch(`/instance/connectionState/${encodeURIComponent(target)}`),
       evolutionFetch('/instance/fetchInstances')
     ]);
+    if([401,403].includes(stateRes.status)||[401,403].includes(instancesRes.status))return {connected:false,state:'unauthorized',instanceName:target,error:'WhatsApp provider rejected the server API key. Use the global Evolution API key in Production settings.',allInstances:[]};
+    if([stateRes,instancesRes].some(result=>!result.ok&&result.status>=500))return {connected:false,state:'unavailable',instanceName:target,error:'WhatsApp provider is unavailable. Try again shortly.',allInstances:[]};
 
     let state = 'closed';
     if (stateRes.ok && stateRes.data?.instance?.state) {
@@ -101,13 +99,15 @@ export async function getLiveConnection(instanceName) {
   }
 }
 
-export async function createOrConnectInstance({ instanceName, qrcode = true, number = '' } = {}) {
+export async function createOrConnectInstance({ instanceName, number = '' } = {}) {
   const { defaultInstance } = getEvolutionConfig();
   const target = (instanceName || defaultInstance).trim().replace(/\s+/g, '_');
+  if(!/^[a-zA-Z0-9_-]{1,64}$/.test(target))throw new Error('Instance name must use letters, numbers, hyphens or underscores.');
   const normalizedNumber = number ? cleanPhone(number) : '';
 
   // 1. Check if target is already connected and open
   const live = await getLiveConnection(target);
+  if(live.state==='unconfigured'||live.state==='unauthorized'||live.state==='unavailable')throw new Error(live.error);
   if (live.connected) {
     return {
       success: true,
@@ -125,15 +125,16 @@ export async function createOrConnectInstance({ instanceName, qrcode = true, num
   // 2. Try connect first
   const connectPath = `/instance/connect/${encodeURIComponent(target)}${normalizedNumber ? `?number=${normalizedNumber}` : ''}`;
   const connectAttempt = await evolutionFetch(connectPath);
+  if([401,403].includes(connectAttempt.status))throw new Error('WhatsApp provider rejected the server API key. Set EVOLUTION_API_KEY to the global Evolution API key in Production and redeploy.');
 
   if (connectAttempt.ok && connectAttempt.data) {
     const isStateOpen = connectAttempt.data.instance?.state === 'open';
     return {
       success: true,
       instanceName: target,
-      base64: connectAttempt.data.base64 || null,
-      code: connectAttempt.data.code || null,
-      pairingCode: connectAttempt.data.pairingCode || null,
+      base64: connectAttempt.data.qrcode?.base64 || connectAttempt.data.base64 || null,
+      code: connectAttempt.data.qrcode?.code || connectAttempt.data.code || null,
+      pairingCode: connectAttempt.data.qrcode?.pairingCode || connectAttempt.data.pairingCode || null,
       state: connectAttempt.data.instance?.state || (isStateOpen ? 'open' : 'connecting'),
       alreadyConnected: isStateOpen
     };
@@ -151,6 +152,7 @@ export async function createOrConnectInstance({ instanceName, qrcode = true, num
     method: 'POST',
     body: JSON.stringify(createBody)
   });
+  if([401,403].includes(createAttempt.status))throw new Error('WhatsApp provider rejected the server API key. Check that EVOLUTION_API_KEY is the global key in Production.');
 
   if (!createAttempt.ok) {
     const rawMsg = createAttempt.data?.response?.message || createAttempt.data?.message || '';
@@ -159,13 +161,14 @@ export async function createOrConnectInstance({ instanceName, qrcode = true, num
     // If instance is already created, try connecting again to get its QR or state
     if (errMsg.toLowerCase().includes('already in use') || errMsg.toLowerCase().includes('already exists')) {
       const retryConnect = await evolutionFetch(connectPath);
+      if([401,403].includes(retryConnect.status))throw new Error('WhatsApp provider rejected the server API key. Check that EVOLUTION_API_KEY is the global key in Production.');
       if (retryConnect.ok && retryConnect.data) {
         return {
           success: true,
           instanceName: target,
-          base64: retryConnect.data.base64 || null,
-          code: retryConnect.data.code || null,
-          pairingCode: retryConnect.data.pairingCode || null,
+          base64: retryConnect.data.qrcode?.base64 || retryConnect.data.base64 || null,
+          code: retryConnect.data.qrcode?.code || retryConnect.data.code || null,
+          pairingCode: retryConnect.data.qrcode?.pairingCode || retryConnect.data.pairingCode || null,
           state: retryConnect.data.instance?.state || 'connecting',
           alreadyConnected: retryConnect.data.instance?.state === 'open'
         };

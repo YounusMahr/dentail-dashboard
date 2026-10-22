@@ -59,6 +59,8 @@ export async function POST(request){
         let changes={status:body.action==='cancel'?'cancelled':'confirmed'};
         if(body.action==='reschedule'){if(new Date(`${body.appointmentDate}T${body.startsAt}:00+05:00`)<=new Date())throw new Error('Choose a future date');changes=await cleanRecord('appointments',{appointmentDate:body.appointmentDate,startsAt:body.startsAt,status:'confirmed'},actor,appointment)}
         await database.collection('appointments').updateOne({...q,_id:appointment._id},{$set:{...changes,updatedAt:new Date()}},{session});
+        await database.collection('visitSessions').updateOne({...q,appointmentId:body.id},{$set:{...(changes.status?{status:changes.status}:{}),...(changes.appointmentDate?{scheduledDate:changes.appointmentDate}:{}),...(changes.startsAt?{startsAt:changes.startsAt}:{}),updatedAt:new Date()}},{session});
+        if(body.action==='cancel')await database.collection('invoices').updateOne({clinicId:q.clinicId,visitInvoiceKey:body.id,paidAmount:0,status:{$ne:'cancelled'}},{$set:{status:'cancelled',balanceAmount:0,updatedAt:new Date()},$unset:{visitInvoiceKey:''}},{session});
         if(body.action==='reschedule')await database.collection('careSessions').updateMany({...q,appointmentId:body.id,status:{$in:['planned','scheduled']}},{$set:{scheduledDate:body.appointmentDate}},{session});
         if(body.action==='cancel')await database.collection('careSessions').updateMany({...q,appointmentId:body.id,status:{$in:['planned','scheduled']}},{$set:{status:'planned',appointmentId:''}},{session});
       }else throw new Error('Unknown action');

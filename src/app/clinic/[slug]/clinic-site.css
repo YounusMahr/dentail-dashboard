@@ -1,0 +1,98 @@
+.clinic-site{--clinic-ink:#102d39;--clinic-muted:#647b84;--clinic-line:#e1e9e9;--clinic-soft:#f3f8f7;background:#fff;color:var(--clinic-ink);min-height:100vh;overflow-x:clip}
+.clinic-site *{box-sizing:border-box}
+.clinic-shell{width:min(1180px,calc(100% - 48px));margin-inline:auto}
+.clinic-site h1,.clinic-site h2,.clinic-site h3{color:var(--clinic-ink);line-height:1.18;letter-spacing:-.045em}
+.clinic-site h1{font-size:clamp(2.7rem,5.5vw,5.3rem);font-weight:600}
+.clinic-site h2{font-size:clamp(2rem,3.6vw,3.25rem);font-weight:600}
+.clinic-site h3{font-size:1.2rem;font-weight:600}
+.clinic-site p{color:var(--clinic-muted);line-height:1.8}
+.clinic-skip{position:fixed;left:12px;top:-80px;z-index:100;background:#fff;padding:10px 14px;border-radius:8px}
+.clinic-skip:focus{top:12px}
+.clinic-preview-note{padding:9px 24px;background:#fff6d9;text-align:center;font-size:12px;color:#785b18}
+.clinic-site-header{position:relative;z-index:5;background:#fff;border-bottom:1px solid var(--clinic-line)}
+.clinic-site-header>.clinic-shell{min-height:84px;display:flex;align-items:center;gap:28px}
+.clinic-site-brand{display:inline-flex;align-items:center;flex:none;min-width:0;color:var(--clinic-ink)}
+.clinic-site-brand>.clinic-custom-brand{display:flex;align-items:center;gap:11px}
+.clinic-custom-brand>img,.clinic-custom-brand>.brand-symbol{width:43px;height:43px;object-fit:contain;border-radius:12px;flex:none}
+.clinic-custom-brand>span:last-child{display:grid;line-height:1.1}
+.clinic-custom-brand strong{font-size:17px;letter-spacing:-.035em;color:inherit}
+.clinic-custom-brand small,.clinic-site-brand>small{font-size:8px;letter-spacing:.15em;font-weight:600;color:var(--clinic-primary)}
+.clinic-site-brand>small{display:none}
+.clinic-site-header nav{display:flex;align-items:center;justify-content:center;gap:clamp(13px,2vw,30px);flex:1;min-width:0;flex-wrap:wrap}
+.clinic-site-header nav a{font-size:12px;font-weight:500;white-space:nowrap;color:#4f6570}
+.clinic-site-header nav a:hover,.clinic-site-header nav a[aria-current=page]{color:var(--clinic-primary)}
+.clinic-header-book,.clinic-button,.clinic-outline-button{display:inline-flex;align-items:center;justify-content:center;gap:10px;border-radius:9px;padding:13px 20px;font-size:12px;font-weight:600;line-height:1.3;white-space:nowrap}
+.clinic-header-book,.clinic-button{background:var(--clinic-primary);color:#fff;box-shadow:0 8px 20px #0a756d27}
+.clinic-header-book:hover,.clinic-button:hover{background:var(--clinic-accent);color:#fff;transform:translateY(-2px)}
+.clinic-outline-button{border:1px solid var(--clinic-primary);color:var(--clinic-primary)}
+.clinic-outline-button:hover{background:var(--clinic-soft)}
+.clinic-eyebrow{display:inline-block;color:var(--clinic-accent);font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;margin-bottom:16px}
+.clinic-section{padding:clamp(66px,8vw,108px) 0}
+.clinic-section-title{text-align:center;max-width:640px;margin:0 auto 38px}
+.clinic-section-title h2{margin:0 0 14px}
+.clinic-section-title p{margin:0}
+.clinic-hero{position:relative;isolation:isolate;display:flex;align-items:center;min-height:500px;background:#0b2036;color:#fff;overflow:hidden}
+.clinic-hero-home{min-height:620px}
+.clinic-hero-photo{position:absolute;inset:0;z-index:-1;background-size:cover;background-position:center}
+.clinic-hero-content{padding-block:90px;position:relative}
+.clinic-hero-content>*{max-width:660px}
+.clinic-hero .clinic-eyebrow{color:#8ee2ce}
+.clinic-hero h1{color:#fff;margin:0 0 22px}
+.clinic-hero p{font-size:clamp(14px,1.45vw,17px);color:#dfebed;max-width:600px;margin-bottom:30px}
+.clinic-hero-actions{display:flex;align-items:center;gap:25px;flex-wrap:wrap}
+.clinic-text-link,.clinic-center-link{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:#fff}
+.clinic-text-link:hover{color:#9ce8d4}
+.clinic-highlights{background:#092942;color:#fff}
+.clinic-highlights>.clinic-shell{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.clinic-highlight{display:flex;gap:16px;align-items:center;padding:25px 22px;border-right:1px solid #ffffff24;min-width:0}
+.clinic-highlight:first-child{padding-left:0}.clinic-highlight:last-child{border-right:0}
+.clinic-highlight>span{display:grid;place-items:center;width:46px;height:46px;flex:none;border-radius:12px;background:#ffffff18;color:#8ee2ce}
+.clinic-highlight small{display:block;color:#9eb5c1;font-size:10px;margin-bottom:4px}
+.clinic-highlight strong{display:block;overflow-wrap:anywhere;font-size:13px;color:#fff}
+.clinic-intro-grid,.clinic-benefits-grid,.clinic-contact-grid,.clinic-booking-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:clamp(35px,6vw,88px)}
+.clinic-intro-image,.clinic-contact-photo{height:440px;position:relative;border-radius:22px;overflow:hidden;background:#ddebe8}
+.clinic-intro-image img,.clinic-contact-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.clinic-image-card{position:absolute;left:20px;bottom:20px;display:flex;align-items:center;gap:10px;background:#fff;padding:13px 17px;border-radius:10px;box-shadow:0 12px 30px #102d3925;font-size:11px;font-weight:600;color:var(--clinic-primary)}
+.clinic-intro-grid h2,.clinic-benefits-grid h2,.clinic-contact-grid h2,.clinic-booking-grid h2{margin:0 0 18px}
+.clinic-intro-grid p,.clinic-benefits-grid p,.clinic-contact-grid p,.clinic-booking-grid p{font-size:13px}
+.clinic-feature-points{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:26px 0}
+.clinic-feature-points span{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;color:#31535d}
+.clinic-feature-points svg{color:var(--clinic-accent);flex:none}
+.clinic-services,.clinic-team,.clinic-booking{background:var(--clinic-soft)}
+.clinic-service-grid,.clinic-team-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}
+.clinic-service-card,.clinic-team-card{background:#fff;border:1px solid var(--clinic-line);border-radius:17px;overflow:hidden;box-shadow:0 7px 20px #102d3908;min-width:0}
+.clinic-service-card{padding:25px;display:flex;flex-direction:column;min-height:280px}
+.clinic-service-card:hover,.clinic-team-card:hover{transform:translateY(-3px);box-shadow:0 14px 30px #102d3914}
+.clinic-service-icon{display:grid;place-items:center;width:47px;height:47px;border-radius:12px;background:#e6f5f0;color:var(--clinic-primary);margin-bottom:19px}
+.clinic-service-card small{color:var(--clinic-accent);letter-spacing:.12em;font-size:9px;font-weight:600;text-transform:uppercase}
+.clinic-service-card h3{margin:9px 0}
+.clinic-service-card p{font-size:11px;margin-bottom:20px}
+.clinic-service-bottom{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;padding-top:14px;border-top:1px solid var(--clinic-line);color:var(--clinic-primary);font-size:11px;font-weight:600}
+.clinic-service-bottom a{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#e6f5f0}
+.clinic-center-link{color:var(--clinic-primary);margin:28px auto 0;width:max-content}
+.clinic-empty{text-align:center;font-size:13px}
+.clinic-stats{background:#092942;color:#fff}
+.clinic-stats>.clinic-shell{display:flex;align-items:center;justify-content:space-between;gap:25px;padding-block:37px}
+.clinic-stats h2{color:#fff;font-size:1.5rem;margin:0;max-width:240px}
+.clinic-stats>.clinic-shell>div{display:grid;text-align:center}
+.clinic-stats strong{font-size:2rem;line-height:1.1}.clinic-stats span{font-size:10px;color:#a9c8d2;margin-top:5px}
+.clinic-benefit-list{display:grid;gap:15px}
+.clinic-benefit-list>div{display:flex;align-items:flex-start;gap:15px;padding:17px;background:#f8fbfb;border:1px solid var(--clinic-line);border-radius:13px}
+.clinic-benefit-list>div>span{color:var(--clinic-primary);flex:none}.clinic-benefit-list strong{font-size:12px}.clinic-benefit-list p{font-size:11px;margin:3px 0 0}
+.clinic-team-card{text-align:center}.clinic-team-portrait{display:grid;place-items:center;height:190px;background:linear-gradient(145deg,#d8eee8,#b8d7d6);color:var(--clinic-primary)}
+.clinic-team-portrait.portrait-1{background:linear-gradient(145deg,#e6edfa,#c3d7e9)}.clinic-team-portrait.portrait-2{background:linear-gradient(145deg,#eee8e3,#d4e6df)}.clinic-team-portrait.portrait-3{background:linear-gradient(145deg,#e5e9f7,#d5eceb)}
+.clinic-team-card>div:last-child{padding:19px}.clinic-team-card h3{margin:0 0 5px}.clinic-team-card p{font-size:11px;margin:0}.clinic-team-card small{font-size:10px;color:var(--clinic-muted)}
+.clinic-faq-grid{display:grid;grid-template-columns:.8fr 1.2fr;gap:70px}.clinic-faq-grid h2{margin:0 0 12px}.clinic-faq-grid details{border-bottom:1px solid var(--clinic-line);padding:18px 0}.clinic-faq-grid details:first-child{border-top:1px solid var(--clinic-line)}
+.clinic-faq-grid summary{display:flex;justify-content:space-between;gap:15px;cursor:pointer;font-size:13px;font-weight:600;list-style:none}.clinic-faq-grid summary::-webkit-details-marker{display:none}.clinic-faq-grid summary span{color:var(--clinic-primary);font-size:20px;line-height:1}.clinic-faq-grid details[open] summary span{transform:rotate(45deg)}.clinic-faq-grid details p{font-size:12px;margin:14px 0 0}
+.clinic-story-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.clinic-story-grid blockquote{margin:0;padding:26px;border:1px solid var(--clinic-line);border-radius:16px}.clinic-story-grid blockquote>span{font-size:35px;color:var(--clinic-primary)}.clinic-story-grid p{font-size:12px}.clinic-story-grid cite{font-size:11px;font-style:normal;font-weight:600}
+.clinic-contact-list{display:grid;gap:12px;margin-top:28px}.clinic-contact-list>a,.clinic-contact-list>div{display:flex;align-items:center;gap:14px;padding:15px;border:1px solid var(--clinic-line);border-radius:11px;color:var(--clinic-primary);min-width:0}.clinic-contact-list span{display:grid;flex:1;overflow-wrap:anywhere;color:var(--clinic-ink);font-size:12px;font-weight:600}.clinic-contact-list small{font-size:9px;letter-spacing:.08em;color:var(--clinic-muted);font-weight:500;margin-bottom:3px}
+.clinic-booking-grid{align-items:start}.clinic-booking-aside{display:flex;gap:12px;align-items:center;background:#e4f3ef;padding:16px;border-radius:11px;color:var(--clinic-primary);font-size:11px}.clinic-booking-aside svg{flex:none}
+.clinic-booking-form{background:#fff;border:1px solid var(--clinic-line);border-radius:19px;padding:30px;box-shadow:0 16px 44px #102d3910;min-width:0}
+.clinic-booking-unavailable{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-height:240px}.clinic-booking-unavailable>svg{color:var(--clinic-primary);margin-bottom:20px}.clinic-booking-unavailable h3{font-size:1.4rem;margin:0 0 8px}.clinic-booking-unavailable p{font-size:12px;margin:0}
+.clinic-booking-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.clinic-booking-fields label{font-size:11px;font-weight:600;color:var(--clinic-ink);margin:0}.clinic-booking-fields input,.clinic-booking-fields select,.clinic-booking-fields textarea{display:block;margin-top:7px;width:100%;padding:10px 11px;background:#fff;border:1px solid #d6e2e2;border-radius:8px;font-size:11px}.clinic-booking-fields .clinic-wide{grid-column:1/-1}.clinic-booking-fields textarea{min-height:75px}.clinic-input-icon{display:block;position:relative}.clinic-input-icon svg{position:absolute;right:11px;top:50%;transform:translateY(-35%);pointer-events:none;color:#8a9fa7}.clinic-input-icon input,.clinic-input-icon select{padding-right:35px}.clinic-consent{display:flex;align-items:flex-start;gap:9px;margin:15px 0 0;font-size:10px;color:var(--clinic-muted);line-height:1.5}.clinic-consent input{width:15px;height:15px;flex:none;margin:0;accent-color:var(--clinic-primary)}.clinic-booking-form>button{width:100%;margin-top:21px;background:var(--clinic-primary);font-size:12px;padding:13px}.clinic-booking-form>button:hover{background:var(--clinic-accent)}
+.clinic-cta{background:var(--clinic-primary);color:#fff;padding:43px 0}.clinic-cta>.clinic-shell{display:flex;align-items:center;justify-content:space-between;gap:30px}.clinic-cta h2{color:#fff;font-size:clamp(1.5rem,2.5vw,2.3rem);margin:0 0 6px}.clinic-cta p{color:#e0f5ef;margin:0;font-size:12px}.clinic-button-light{background:#fff;color:var(--clinic-primary);box-shadow:none}.clinic-button-light:hover{background:#e7f5f0;color:var(--clinic-primary)}
+.clinic-site-footer{background:#071e2c;color:#d3e3e8;padding:70px 0 25px}.clinic-footer-top{display:grid;grid-template-columns:1.5fr repeat(3,1fr);gap:35px}.clinic-footer-top>div{display:flex;flex-direction:column;align-items:flex-start;gap:11px;min-width:0}.clinic-site-footer .clinic-site-brand{color:#fff}.clinic-site-footer .clinic-site-brand small{color:#9ddacb}.clinic-footer-top>div>strong{color:#fff;font-size:12px;margin-bottom:8px}.clinic-footer-top p,.clinic-footer-top a:not(.clinic-site-brand){font-size:11px;color:#b1cad1;margin:0;overflow-wrap:anywhere}.clinic-footer-top a:hover{color:#fff}.clinic-footer-bottom{display:flex;justify-content:space-between;gap:15px;margin-top:45px;padding-top:23px;border-top:1px solid #ffffff24;font-size:10px;color:#89a8b3}
+.clinic-custom-page{padding-block:75px 105px;max-width:850px}.clinic-custom-page h1{font-size:clamp(2.2rem,4vw,4rem);margin-bottom:15px}.clinic-custom-lead{font-size:16px}.clinic-custom-page>img{width:100%;max-height:460px;object-fit:cover;border-radius:18px;margin:22px 0}.clinic-custom-copy{margin:25px 0 32px}.clinic-custom-copy p{white-space:pre-wrap}
+@media(max-width:1000px){.clinic-site-header>.clinic-shell{gap:16px;flex-wrap:wrap;padding-block:14px}.clinic-site-header nav{order:3;width:100%;flex-basis:100%;justify-content:flex-start;overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px}.clinic-header-book{margin-left:auto}.clinic-service-grid,.clinic-team-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.clinic-footer-top{grid-template-columns:repeat(2,minmax(0,1fr))}.clinic-faq-grid{gap:35px}}
+@media(max-width:700px){.clinic-shell{width:min(100% - 32px,560px)}.clinic-site-header>.clinic-shell{min-height:70px}.clinic-custom-brand strong{font-size:14px}.clinic-custom-brand>img,.clinic-custom-brand>.brand-symbol{width:37px;height:37px}.clinic-header-book{padding:10px 12px;font-size:10px}.clinic-site-header nav{gap:20px}.clinic-hero,.clinic-hero-home{min-height:490px}.clinic-hero-content{padding-block:65px}.clinic-hero-photo{background-position:60% center}.clinic-hero-actions{gap:18px}.clinic-highlights>.clinic-shell{grid-template-columns:1fr}.clinic-highlight{padding:15px 0;border-right:0;border-bottom:1px solid #ffffff24}.clinic-highlight:last-child{border-bottom:0}.clinic-intro-grid,.clinic-benefits-grid,.clinic-contact-grid,.clinic-booking-grid,.clinic-faq-grid{grid-template-columns:1fr;gap:35px}.clinic-intro-image,.clinic-contact-photo{height:320px}.clinic-service-grid,.clinic-team-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.clinic-stats>.clinic-shell{display:grid;grid-template-columns:repeat(3,1fr);text-align:center}.clinic-stats h2{grid-column:1/-1;max-width:none}.clinic-cta>.clinic-shell{align-items:flex-start;flex-direction:column}.clinic-footer-top{gap:30px}}
+@media(max-width:480px){.clinic-service-grid,.clinic-team-grid,.clinic-story-grid,.clinic-footer-top{grid-template-columns:1fr}.clinic-booking-fields{grid-template-columns:1fr}.clinic-service-card{min-height:0}.clinic-stats strong{font-size:1.5rem}.clinic-feature-points{grid-template-columns:1fr}.clinic-booking-form{padding:19px}.clinic-hero h1{font-size:2.55rem}.clinic-footer-bottom{flex-direction:column}}

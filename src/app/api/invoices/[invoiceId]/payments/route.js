@@ -6,6 +6,7 @@ import { writeBlock } from '@/lib/clinic-access';
 import { careIndexes } from '@/lib/care';
 import { money } from '@/lib/care-validation.mjs';
 import { enqueue } from '@/lib/messaging';
+import {queueEmail,dispatchEmailOutbox} from '@/lib/email-notifications';
 export async function GET(request,{params}){
  const user=await currentUser(),invoiceId=(await params).invoiceId;if(!user?.clinicId||!id(invoiceId))return fail('Unauthorized',401);
  const database=await db(),invoice=await database.collection('invoices').findOne({_id:new ObjectId(invoiceId),clinicId:user.clinicId});if(!invoice)return fail('Invoice not found',404);
@@ -31,6 +32,8 @@ export async function POST(request,{params}){
   paymentId=new ObjectId();await database.collection('payments').insertOne({_id:paymentId,clinicId:user.clinicId,invoiceId,patientId:invoice.patientId,sessionId,receivedByUserId:String(user._id),amount,paymentMethod:method,transactionReference:String(body.transactionReference||'').slice(0,100),...(idempotencyKey?{idempotencyKey}:{}),createdAt:new Date()},{session});
   await database.collection('auditLogs').insertOne({clinicId:user.clinicId,module:'payments',recordId:invoiceId,actorId:String(user._id),amount,sessionId,createdAt:new Date()},{session});
   await enqueue({clinicId:user.clinicId,patientId:invoice.patientId,type:'payment_receipt',eventKey:`payment:${paymentId}`,values:[`PKR ${amount}`,`Balance PKR ${invoice.balanceAmount}`,invoice.invoiceNumber]},session);
+  await queueEmail({clinicId:user.clinicId,patientId:invoice.patientId,type:'payment_receipt',eventKey:`payment:${paymentId}`,details:[`Receipt: ${invoice.invoiceNumber}`,`Amount received: Rs ${amount}`,`Remaining balance: Rs ${invoice.balanceAmount}`],sourceId:String(paymentId)},session);
  })}catch(e){return fail(e.code===11000?'Payment already recorded; refresh before retrying':e.message,409)}finally{await session.endSession()}
+ if(!replayed)try{await dispatchEmailOutbox(user.clinicId)}catch{console.error('Payment saved; email remains pending for retry')}
  return ok({invoice,paymentId:String(paymentId),replayed});
 }

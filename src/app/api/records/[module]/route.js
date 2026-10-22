@@ -6,7 +6,7 @@ import { db } from '@/lib/db';
 import { fail, ok } from '@/lib/http';
 import { modules } from '@/lib/modules';
 import { cleanRecord } from '@/lib/records';
-import { enqueue } from '@/lib/messaging';
+import { bookVisit } from '@/lib/visit-booking';
 
 function config(module, user, write = false) {
   const schema = modules[module];
@@ -69,15 +69,7 @@ export async function POST(request, { params }) {
   if (!config(module, user, true)) return fail('Unauthorized', 403);
   const input = await request.json().catch(() => ({}));
   try {
-    if(module==='appointments'&&input.patientMode==='new'){
-      if(!input.newPatient||typeof input.newPatient!=='object')return fail('Enter the new patient details');
-      const database=await db(),patient=await cleanRecord('patients',{name:input.newPatient.name,phone:input.newPatient.phone,email:input.newPatient.email||'',whatsappConsent:false,preferredLanguage:'en'},user);
-      const existing=await database.collection('patients').findOne({clinicId:user.clinicId,phone:patient.phone},{projection:{_id:1}});if(existing)return fail('This phone number already has a patient file. Choose Existing patient file.',409);
-      const session=database.client.startSession();let result,record,patientId;
-      try{await session.withTransaction(async()=>{patientId=new (await import('mongodb')).ObjectId();await database.collection('patients').insertOne({_id:patientId,...patient,clinicId:user.clinicId,createdAt:new Date(),updatedAt:new Date()},{session});record=await cleanRecord('appointments',{...input,patientId:String(patientId)},user,null,{session,skipIndexes:true});result=await database.collection('appointments').insertOne({...record,clinicId:user.clinicId,createdAt:new Date(),updatedAt:new Date()},{session})})}finally{await session.endSession()}
-      try{await enqueue({clinicId:user.clinicId,patientId:String(patientId),type:'appointment_confirmation',eventKey:'booking:'+result.insertedId+':'+record.appointmentDate+':'+record.startsAt,values:[record.appointmentDate,record.startsAt],sourceCollection:'appointments',sourceId:String(result.insertedId),sourceFingerprint:record.appointmentDate+' '+record.startsAt})}catch{console.error('Booking saved; notification will be recovered by scheduler')}
-      return ok({id:String(result.insertedId),patientId:String(patientId)},201);
-    }
+    if(module==='appointments')return ok(await bookVisit(input,user),201);
     const record = await cleanRecord(module, input, user);
     if (module === 'doctors') return ok({ id: String(await saveDoctor(record, input, user)) }, 201);
     if (['treatments','invoices'].includes(module)) return ok({ id: String(await createClinicalRecord(module, input, user, record)) }, 201);
@@ -92,7 +84,6 @@ export async function POST(request, { params }) {
       if (doctor) await database.collection('doctors').updateOne({ _id: doctor._id }, { $set: { userId: String(result.insertedId) } });
       else await database.collection('doctors').insertOne({ clinicId: user.clinicId, userId: String(result.insertedId), name: record.name, email: record.email, specialization: 'General Dentist', slotMinutes: 30, workingDays: 'monday,tuesday,wednesday,thursday,friday,saturday', startTime: '10:00', endTime: '20:00', active: true, createdAt: new Date() });
     }
-    if(module==='appointments')try{await enqueue({clinicId:user.clinicId,patientId:record.patientId,type:'appointment_confirmation',eventKey:'booking:'+result.insertedId+':'+record.appointmentDate+':'+record.startsAt,values:[record.appointmentDate,record.startsAt],sourceCollection:'appointments',sourceId:String(result.insertedId),sourceFingerprint:record.appointmentDate+' '+record.startsAt})}catch{console.error('Booking saved; notification will be recovered by scheduler')}
     return ok({ id: String(result.insertedId) }, 201);
-  } catch (error) { return fail(error.code === 11000 ? 'This record already exists or slot is booked' : error.message); }
+  } catch (error) { return fail(error.code === 11000 ? 'This record already exists or slot is booked' : error.message,error.code===11000||error.message?.includes('already has a patient file')?409:400); }
 }

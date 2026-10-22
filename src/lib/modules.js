@@ -1,11 +1,11 @@
 export const modules = {
   patients: { title: 'Patients', roles: ['clinic_admin', 'receptionist', 'dentist'], fields: [
     ['name', 'Name', 'text', true], ['phone', 'Phone', 'tel', true], ['email', 'Email', 'email'], ['dateOfBirth', 'Date of birth', 'date'],
-    ['whatsappConsent','Patient agreed to WhatsApp notifications','checkbox'], ['preferredLanguage','Message language','select:en,ur'], ['gender', 'Gender', 'select:male,female,other'], ['bloodGroup', 'Blood group', 'text'], ['address', 'Address', 'text'], ['medicalHistory', 'Medical history', 'textarea']
+    ['whatsappConsent','WhatsApp appointment and care updates','checkbox'], ['emailConsent','Email appointment and care updates','checkbox'], ['marketingConsent','Optional clinic news and offers','checkbox'], ['preferredLanguage','Message language','select:en,ur'], ['gender', 'Gender', 'select:male,female,other'], ['bloodGroup', 'Blood group', 'text'], ['address', 'Address', 'text'], ['medicalHistory', 'Medical history', 'textarea']
   ] },
   services: { title: 'Dental services', roles: ['clinic_admin', 'receptionist', 'dentist'], writeRoles: ['clinic_admin'], fields: [
     ['name', 'Name', 'text', true], ['category', 'Category', 'select:Preventive,Restorative,Endodontics,Periodontics,Prosthodontics,Oral Surgery,Orthodontics,Cosmetic,General'], ['description', 'Description', 'textarea'], ['standardFee', 'Fee (PKR)', 'number', true],
-    ['durationMinutes', 'Duration (minutes)', 'number', true], ['active', 'Active', 'checkbox']
+    ['durationMinutes', 'Duration (minutes)', 'number', true], ['includesCheckup', 'Checkup included in this fee', 'checkbox'], ['active', 'Active', 'checkbox']
   ] },
   doctors: { title: 'Doctor & chair roster', roles: ['clinic_admin', 'receptionist', 'dentist'], writeRoles: ['clinic_admin'], fields: [
     ['name', 'Name', 'text', true], ['email', 'Email', 'email', true], ['phone', 'Phone', 'tel'], ['specialization', 'Specialization', 'text'],

@@ -22,13 +22,12 @@ export default function CareWorkspace(){
  async function connectWhatsApp(mode=connectTab,phone=pairingPhone){
   setBusy(true);setError('');
   try{
-   const target=instanceInput||data?.settings?.instanceName||'hremes';
+   const target=(instanceInput||data?.settings?.instanceName||'hremes').trim().replace(/\s+/g,'_');setInstanceInput(target);
    const r=await fetch('/api/care/automation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'connect',instanceName:target,number:mode==='code'?phone:''})}),d=await r.json();
    if(!r.ok)throw new Error(d.error);
    if(d.base64)setQrCode(d.base64);
    if(d.pairingCode)setPairingCode(d.pairingCode);
-   if(d.state==='open'){setMessage('WhatsApp is already live and connected!');setConnectModal(false)}else{setMessage(mode==='code'?'Pairing code generated! Enter it on your phone.':'QR code ready! Scan with your phone.')}
-   await load();
+   if(d.state==='open'){setMessage('WhatsApp is already live and connected!');setConnectModal(false);await load()}else if(mode==='qr'&&!d.base64){throw new Error('Provider connected but did not return a QR image. Try Generate QR again or use a new instance name.')}else if(mode==='code'&&!d.pairingCode){throw new Error('Provider did not return a pairing code. Check the phone number and try again.')}else{setMessage(mode==='code'?'Pairing code generated! Enter it on your phone.':'QR code ready! Scan with your phone.')}
   }catch(e){setError(e.message)}finally{setBusy(false)}
  }
  async function sendTestMessage(e){
@@ -42,16 +41,17 @@ export default function CareWorkspace(){
   }catch(e){setError(e.message)}finally{setBusy(false)}
  }
  useEffect(()=>{
-  if(!connectModal||data?.settings?.providerConnected)return;
+  if(!connectModal||data?.settings?.providerConnected||!qrCode&&!pairingCode)return;
   const t=setInterval(async()=>{
    try{
     const r=await fetch('/api/care/automation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status',instanceName:instanceInput||data?.settings?.instanceName||'hremes'})});
     const d=await r.json();
     if(d.connected){setMessage('WhatsApp connected successfully!');setConnectModal(false);clearInterval(t);load()}
+    else if(['unauthorized','unconfigured'].includes(d.state)){setError(d.error||'WhatsApp provider authorization failed.');clearInterval(t)}
    }catch{}
   },4000);
   return ()=>clearInterval(t);
- },[connectModal,instanceInput,data?.settings?.instanceName,data?.settings?.providerConnected,load]);
+ },[connectModal,instanceInput,data?.settings?.instanceName,data?.settings?.providerConnected,qrCode,pairingCode,load]);
   function openEdit(record={}){
     const todayDate=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Karachi'});
     const inTwoWeeks=new Date(Date.now()+14*86400000).toLocaleDateString('en-CA',{timeZone:'Asia/Karachi'});
@@ -139,6 +139,7 @@ export default function CareWorkspace(){
                 <>Connect your WhatsApp account to enable real-time booking confirmations, reminders, and digital receipts.</>
               )}
             </p>
+            {data.settings?.providerError&&<p role="alert" className="mt-2 text-xs font-medium text-red-700">{data.settings.providerError}</p>}
           </div>
         </div>
         <div className="row">
@@ -147,7 +148,7 @@ export default function CareWorkspace(){
               <button className="secondary" onClick={()=>{setTestPhone(data.settings?.ownerNumber||'');setTestModal(true)}}>
                 <Send size={14}/>Test Message
               </button>
-              <button className="secondary" onClick={()=>{setInstanceInput(data.settings?.instanceName||'hremes');setConnectModal(true);connectWhatsApp('qr')}}>
+              <button className="secondary" onClick={()=>{setInstanceInput(data.settings?.instanceName||'hremes');setQrCode('');setPairingCode('');setError('');setConnectModal(true)}}>
                 <QrCode size={14}/>Switch / Re-link
               </button>
               <button className="danger" disabled={busy} onClick={()=>action({action:'disconnect',instanceName:data.settings?.instanceName},'WhatsApp disconnected')}>
@@ -161,7 +162,7 @@ export default function CareWorkspace(){
                   Use Connected (hremes)
                 </button>
               )}
-              <button onClick={()=>{setInstanceInput(data.settings?.instanceName||'hremes');setConnectModal(true);connectWhatsApp('qr')}}>
+              <button onClick={()=>{setInstanceInput(data.settings?.instanceName||'hremes');setQrCode('');setPairingCode('');setError('');setConnectModal(true)}}>
                 <QrCode size={14}/>Connect WhatsApp
               </button>
             </>
@@ -271,9 +272,10 @@ export default function CareWorkspace(){
  {costs&&<Dialog title="Record treatment costs" onClose={close}>{notifyError}<form className="block!" onSubmit={async e=>{e.preventDefault();setBusy(true);try{const r=await fetch('/api/care/plans',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...Object.fromEntries(new FormData(e.currentTarget)),id:costs._id,action:'costs'})}),d=await r.json();if(!r.ok)throw new Error(d.error);setCosts(null);load()}catch(e){setError(e.message)}finally{setBusy(false)}}}>{[['materialCost','Material cost'],['providerCost','Recorded doctor / provider cost']].map(([k,label])=><div className="field" key={k}><label htmlFor={k}>{label} (PKR)</label><input id={k} name={k} type="number" min="0" step=".01" defaultValue={costs[k]||0}/></div>)}<p className="muted">Lab costs are taken from linked lab cases automatically.</p><button disabled={busy}>Save costs</button></form></Dialog>}
  {connectModal&&<Dialog title="Connect WhatsApp (Evolution API)" onClose={()=>setConnectModal(false)} wide>
     <div className="p-2">
+      {error&&<div className="error mb-4" role="alert">{error}</div>}
       <div className="row between mb-4" style={{borderBottom:'1px solid #e5e7eb',paddingBottom:12}}>
         <div className="row gap-2">
-          <button type="button" className={connectTab==='qr'?'':'secondary'} onClick={()=>{setConnectTab('qr');connectWhatsApp('qr')}}>
+          <button type="button" className={connectTab==='qr'?'':'secondary'} onClick={()=>{setConnectTab('qr');setPairingCode('');setQrCode('')}}>
             <QrCode size={15}/>Option 1: Scan QR Code
           </button>
           <button type="button" className={connectTab==='code'?'':'secondary'} onClick={()=>setConnectTab('code')}>
@@ -282,7 +284,7 @@ export default function CareWorkspace(){
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-500">Instance:</span>
-          <input style={{width:140,padding:'6px 10px',fontSize:11}} value={instanceInput} onChange={e=>setInstanceInput(e.target.value)} placeholder="Instance name"/>
+          <input style={{width:140,padding:'6px 10px',fontSize:11}} value={instanceInput} onChange={e=>{setInstanceInput(e.target.value);setQrCode('');setPairingCode('')}} placeholder="Instance name"/>
         </div>
       </div>
       {connectTab==='qr'&&(

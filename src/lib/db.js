@@ -13,6 +13,7 @@ export async function ensureIndexes() {
   const database = await db();
   if (!indexesPromise) indexesPromise=Promise.all([
     database.collection('notificationOutbox').createIndex({clinicId:1,eventKey:1},{unique:true}),
+    database.collection('emailOutbox').createIndex({clinicId:1,eventKey:1},{unique:true}),
     database.collection('users').createIndex({ email: 1 }, { unique: true }),
     database.collection('clinics').createIndex({ slug: 1 }, { unique: true }),
     database.collection('sessions').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
@@ -24,6 +25,8 @@ export async function ensureIndexes() {
     database.collection('patients').createIndex({ clinicId: 1, phone: 1 }),
     database.collection('invoices').createIndex({ clinicId: 1, invoiceNumber: 1 }, { unique: true }),
     database.collection('invoices').createIndex({ clinicId: 1, visitInvoiceKey: 1 }, { unique: true, partialFilterExpression: { visitInvoiceKey: { $exists: true } } }),
+    database.collection('visitSessions').createIndex({clinicId:1,appointmentId:1},{unique:true}),
+    database.collection('prescriptions').createIndex({clinicId:1,appointmentId:1}),
   ]).catch(error=>{indexesPromise=undefined;throw error});
   return indexesPromise;
 }

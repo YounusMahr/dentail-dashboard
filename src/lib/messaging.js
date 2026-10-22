@@ -2,6 +2,7 @@ import { ObjectId } from 'mongodb';
 import { db } from './db';
 import { today } from './care-validation.mjs';
 import { cleanPhone, getLiveConnection, sendEvolutionText, getEvolutionConfig } from './evolution';
+import {queueEmail,dispatchEmailOutbox} from './email-notifications';
 
 export const messageTypes = [
   'appointment_confirmation',
@@ -58,6 +59,7 @@ export async function publicMessagingSettings(clinicId) {
     instanceName,
     providerConnected: live.connected,
     connectionState: live.state,
+    providerError:live.error||'',
     profileName: live.profileName,
     profilePicUrl: live.profilePicUrl,
     ownerNumber: live.ownerNumber,
@@ -238,24 +240,29 @@ export async function queueReminders(clinicId, autoDispatch = false) {
   for (const a of appointments) {
     const base = { clinicId: a.clinicId, patientId: a.patientId, sourceCollection: 'appointments', sourceId: String(a._id), sourceFingerprint: `${a.appointmentDate} ${a.startsAt}`, values: [a.appointmentDate, a.startsAt] };
     await enqueue({ ...base, type: 'appointment_confirmation', eventKey: `booking:${a._id}:${a.appointmentDate}:${a.startsAt}` }, null, false);
+    await queueEmail({clinicId:a.clinicId,patientId:a.patientId,type:'appointment_confirmation',eventKey:`booking:${a._id}:${a.appointmentDate}:${a.startsAt}`,details:[`Date: ${a.appointmentDate}`,`Time: ${a.startsAt}`],sourceId:String(a._id)});
     if (a.appointmentDate === tomorrow) {
       await enqueue({ ...base, type: 'appointment_reminder', eventKey: `reminder:${a._id}:${a.appointmentDate}:${a.startsAt}` }, null, false);
+      await queueEmail({clinicId:a.clinicId,patientId:a.patientId,type:'appointment_reminder',eventKey:`reminder:${a._id}:${a.appointmentDate}:${a.startsAt}`,details:[`Date: ${a.appointmentDate}`,`Time: ${a.startsAt}`],sourceId:String(a._id)});
     }
   }
 
   const sessions = await database.collection('careSessions').find({ ...q, scheduledDate: tomorrow, status: { $in: ['planned', 'scheduled'] } }).limit(2000).toArray();
   for (const s of sessions) {
     await enqueue({ clinicId: s.clinicId, patientId: s.patientId, type: 'session_reminder', eventKey: `session:${s._id}:${s.scheduledDate}`, values: [s.scheduledDate, 'Your next treatment visit'], sourceCollection: 'careSessions', sourceId: String(s._id), sourceFingerprint: s.scheduledDate }, null, false);
+    await queueEmail({clinicId:s.clinicId,patientId:s.patientId,type:'session_reminder',eventKey:`session:${s._id}:${s.scheduledDate}`,details:[`Session date: ${s.scheduledDate}`],sourceId:String(s._id)});
   }
 
   const followUps = await database.collection('follow-ups').find({ ...q, status: 'pending', dueDate: { $lte: now } }).limit(2000).toArray();
   for (const f of followUps) {
     await enqueue({ clinicId: f.clinicId, patientId: f.patientId, type: 'follow_up', eventKey: `follow-up:${f._id}:${f.dueDate}`, values: [f.dueDate, 'Please contact the clinic to arrange your follow-up'], sourceCollection: 'follow-ups', sourceId: String(f._id) }, null, false);
+    await queueEmail({clinicId:f.clinicId,patientId:f.patientId,type:'follow_up',eventKey:`follow-up:${f._id}:${f.dueDate}`,details:[`Follow-up date: ${f.dueDate}`,f.reason],sourceId:String(f._id)});
   }
 
   let dispatchResult = null;
   if (autoDispatch) {
     dispatchResult = await dispatchPendingNotifications(clinicId);
+    await dispatchEmailOutbox(clinicId);
   }
 
   return {

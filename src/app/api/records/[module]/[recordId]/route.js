@@ -40,6 +40,8 @@ export async function PATCH(request, { params }) {
       const database = await db(), session = database.client.startSession();
       try { await session.withTransaction(async () => {
         await ctx.collection.updateOne(ctx.filter, { $set: { ...changes, updatedAt: new Date() } }, { session });
+        if(ctx.module==='appointments')await database.collection('visitSessions').updateOne({clinicId:ctx.user.clinicId,appointmentId:String(ctx.existing._id)},{$set:{...(changes.status?{status:changes.status}:{}),...(changes.appointmentDate?{scheduledDate:changes.appointmentDate}:{}),...(changes.startsAt?{startsAt:changes.startsAt}:{}),...(changes.serviceId!==undefined?{serviceId:changes.serviceId}:{}),...(changes.doctorId?{doctorId:changes.doctorId}:{}),updatedAt:new Date()}},{session});
+        if(ctx.module==='appointments'&&changes.status==='cancelled')await database.collection('invoices').updateOne({clinicId:ctx.user.clinicId,visitInvoiceKey:String(ctx.existing._id),paidAmount:0,status:{$ne:'cancelled'}},{$set:{status:'cancelled',balanceAmount:0,updatedAt:new Date()},$unset:{visitInvoiceKey:''}},{session});
         await database.collection('auditLogs').insertOne({ clinicId: ctx.user.clinicId, module: ctx.module, recordId: String(ctx.existing._id), actorId: String(ctx.user._id), changedFields: Object.keys(changes), beforeStatus: ctx.existing.status || null, afterStatus: changes.status || ctx.existing.status || null, createdAt: new Date() }, { session });
       }); } finally { await session.endSession(); }
     } else await ctx.collection.updateOne(ctx.filter, { $set: { ...changes, updatedAt: new Date() } });

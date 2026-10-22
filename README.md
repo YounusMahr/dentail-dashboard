@@ -15,6 +15,7 @@ For production: `npm run build`, then `npm start`. Configure HTTPS and database 
 
 ## Main workflows
 
+- **Fast booking:** one new or existing patient appointment automatically creates a visit session, service-priced PKR invoice and editable bilingual prescription draft. A new patient adds the clinic's configurable Rs 500 checkup fee unless the selected service includes checkup. The receptionist collects payment on the same visit screen; an existing patient is reused for later appointments.
 - **Care workspace → Treatment plans:** choose patient, dentist, adult/primary FDI teeth, agreed fee, patient explanation and aftercare. Accepting a draft creates one treatment invoice. Accepted financial details are locked.
 - **Sessions:** allocate the treatment fee across visits, optionally link matching appointments and track clinical completion independently from payment. Session allocations cannot exceed the agreed fee. A pending linked lab case blocks session completion.
 - **Invoices:** consultation, checkup and treatment fee categories, dentist fees, custom or service items, discounts, partial payments and A4 invoices/receipts. Advance payments reduce the overall balance; session payments also identify the visit. Payment request keys prevent accidental duplicate submissions. Money uses two-decimal validation and atomic database transactions.
@@ -25,22 +26,28 @@ For production: `npm run build`, then `npm start`. Configure HTTPS and database 
 - **Clinic website:** editable pages, descriptions, images and navigation order; administrator-only draft preview and separate published snapshots. Public pages live under `/clinic/<clinic-slug>/<page-slug>` and link to online booking.
 - **Practice insights:** overdue sessions, accepted plans without sessions, lab delays, patient waiting counts and collections less recorded lab/material/provider costs. This is not an accounting profit statement and excludes unrecorded overheads.
 - **Patient profile:** tooth-specific treatment/plan/file history. Uploaded clinical files can be linked to FDI tooth numbers and remain behind clinic authentication.
-- Existing patient directory, appointments, doctor schedules, treatments, reports, clinic staff/settings and platform subscription workflows remain available.
+- Existing patient directory, appointments, doctor schedules, treatments, reports and clinic staff/settings remain available.
 
-## WhatsApp: templates only for now
+## Patient messages
 
-API integration and live sending are intentionally deferred at the owner's request. There is no Whapi, Meta or E-mareez connection.
+Appointment, session and follow-up reminders are prepared for consented patients. WhatsApp provider connection is configured separately in the care workspace. A pending record is not a sent message. There is no E-mareez connection.
 
 `Care workspace → Message templates` provides editable English/Urdu text for booking confirmations, appointment/session reminders, follow-ups, receipts and waiting-list offers. Variables: `{{patient}}`, `{{clinic}}`, `{{details}}`. Preview uses sample values.
 
-Only patients with recorded WhatsApp consent and a usable phone number produce pending notifications. Booking and payment events prepare records automatically. **Prepare reminders** scans upcoming visits and due follow-ups. Repeated scans deduplicate events. Status `pending_provider` means prepared, not sent or delivered. A future provider integration must recheck consent, source-record status, templates and expiry before sending.
+Only patients with recorded WhatsApp consent and a usable phone number produce pending notifications. Booking and payment events prepare records automatically. **Prepare reminders** scans upcoming visits and due follow-ups. Repeated scans deduplicate events. Status `pending_provider` means prepared, not sent or delivered. Staff can dispatch the queue after the Evolution API connection is live; consent is checked again at send time.
 
-An optional scheduler can call `POST /api/reminders/run` with `Authorization: Bearer <REMINDER_CRON_SECRET>` to prepare reminders. It never sends messages in this version. Manual WhatsApp links in existing screens still open a draft for staff to send themselves.
+For the WhatsApp QR connection, configure `EVOLUTION_API_URL` and `EVOLUTION_API_KEY` as server-side variables. The key must be the Evolution server's **global** `AUTHENTICATION_API_KEY` because instance creation requires it. On Vercel, set both for Production and redeploy. The dashboard reports `unconfigured`, `unauthorized`, or `unavailable` without revealing the key; it no longer substitutes a hardcoded key. Opening the QR dialog does not create an instance until staff selects Generate QR Code.
+
+An optional scheduler can call `POST /api/reminders/run` with `Authorization: Bearer <REMINDER_CRON_SECRET>` to prepare reminders. Manual WhatsApp links in existing screens also open a draft for staff to send themselves. This endpoint does not dispatch the WhatsApp queue.
+
+Patients can separately opt in to appointment and care emails. Booking, payment and doctor-issued prescription events create email notifications. Set `RESEND_API_KEY` and `EMAIL_FROM` on the server to deliver through Resend; otherwise records remain `pending_provider`. A payment email contains receipt details and balance. An issued-prescription email tells the patient to request a private portal link; the prescription document itself is available through the authenticated patient portal and is not attached to email. Demo patient contacts have consent off.
 
 ## Verification
 
 ```sh
 npm run build
+node tests/evolution-connection.mjs
+node --env-file=.env.local tests/visit-integration.mjs
 node --env-file=.env.local tests/integration.mjs
 ```
 
@@ -48,7 +55,7 @@ The integration check creates a uniquely named `dentalcare_test_*` database on t
 
 ## External services / limits
 
-- WhatsApp provider credentials and sending are deferred, not simulated.
+- WhatsApp delivery depends on a connected provider and explicit patient consent. Email delivery depends on Resend credentials and separate email consent.
 - Payments are recorded by staff; online card charging is not connected.
 - Clinical dictation depends on browser speech support and may use the browser vendor's speech service. Clinicians review and issue all clinical content.
 - Clinic websites use the application's domain and clinic URL. DNS/custom-domain provisioning is a separate hosting task.
