@@ -52,7 +52,35 @@ export default function CareWorkspace(){
   },4000);
   return ()=>clearInterval(t);
  },[connectModal,instanceInput,data?.settings?.instanceName,data?.settings?.providerConnected,load]);
- function openEdit(record={}){setError('');setTemplateName('');setEdit(record);setForm({...record,language:record.language||'bilingual',doctorId:record.doctorId||(user?.role==='dentist'?user.doctorId:''),sortOrder:record.sortOrder||0});setMeds(record.medications?.map(x=>({...x}))||[blankMedicine()])}
+  function openEdit(record={}){
+    const todayDate=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Karachi'});
+    const inTwoWeeks=new Date(Date.now()+14*86400000).toLocaleDateString('en-CA',{timeZone:'Asia/Karachi'});
+    const inThreeDays=new Date(Date.now()+3*86400000).toLocaleDateString('en-CA',{timeZone:'Asia/Karachi'});
+    const defaultDoc=record.doctorId||(user?.role==='dentist'?user.doctorId:(data?.options?.doctors?.[0]?._id||''));
+    const defaultPat=record.patientId||patientFilter||data?.options?.patients?.[0]?._id||'';
+    const defaults=!record._id?{
+      patientId:defaultPat,
+      doctorId:defaultDoc,
+      scheduledDate:todayDate,
+      nextReviewDate:todayDate,
+      reviewDate:todayDate,
+      dueDate:inThreeDays,
+      earliestDate:todayDate,
+      latestDate:inTwoWeeks,
+      earliestTime:'10:00',
+      latestTime:'18:00',
+      durationMinutes:30,
+      language:'bilingual',
+      planId:data?.options?.plans?.[0]?._id||'',
+      serviceId:data?.options?.services?.[0]?._id||'',
+      totalFee:5000,
+      amountDue:2500,
+      cost:3000
+    }:{};
+    setError('');setTemplateName('');setEdit(record);
+    setForm({...defaults,...record,language:record.language||'bilingual',doctorId:defaultDoc,sortOrder:record.sortOrder||0});
+    setMeds(record.medications?.map(x=>({...x}))||[blankMedicine()]);
+  }
  async function save(e){e.preventDefault();const result=await action({...form,id:edit?._id,action:'save',...(section==='prescriptions'?{medications:meds}:{})},'Saved successfully');if(result)setEdit(null)}
  const options=data?.options||{},name=(type,id)=>options[type]?.find(x=>x._id===id)?.name||options[type]?.find(x=>x._id===id)?.title||'—';
  const clinical=clinicalRoles.includes(user?.role),canWrite=section!=='plans'||clinical;
