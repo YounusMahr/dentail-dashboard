@@ -25,10 +25,37 @@ export default function AssistantChat(){
     }catch(e){setError(e.message);if(!completed){setMessages(before);setQuestion(content)}loadList().catch(()=>{})}finally{sending.current=false;setBusy(false);setStatus('');input.current?.focus()}
   }
   return <section className="ai-page">
-    <div className="page-heading"><div><p className="eyebrow">YOUR PRACTICE, IN FOCUS</p><h1>AI Assistant <span className="ai-beta">ADMIN</span></h1><p>Ask a question. Understand your clinic. Plan your next step.</p></div><span className="ai-readonly"><ShieldCheck size={15}/> Read-only clinic access</span></div>
     <div className="ai-workspace">
-      <aside className="ai-history"><button className="button" onClick={newChat} disabled={busy||loading}><Plus size={17}/> New conversation</button><p className="nav-caption">RECENT CONVERSATIONS</p><div className="ai-chat-list">{chats.map(chat=><button key={chat._id} className={id===chat._id?'selected':''} onClick={()=>openChat(chat._id)} disabled={busy||loading}><MessageSquare size={16}/><span>{chat.title}</span></button>)}{!chats.length&&<p className="ai-muted">Your conversations will appear here.</p>}</div><div className="ai-history-note"><Sparkles size={21}/><strong>A little clarity goes a long way.</strong><p>Explore appointments, balances, treatments and your daily workload.</p><small>Powered by Groq · GPT-OSS 120B</small></div></aside>
-      <div className="ai-conversation"><header className="ai-chat-header"><div className="ai-assistant-avatar"><Sparkles size={22}/></div><div><strong>DentalCare Assistant</strong><small><span className="ai-online"/>{configured?'Connected to your clinic workspace':'Server setup required'}</small></div>{id&&<button className="icon-button" aria-label="Delete conversation" disabled={busy||loading} onClick={removeChat}><Trash2 size={17}/></button>}</header>
+      <div className="ai-conversation">
+        <header className="ai-chat-header">
+          <div className="ai-header-left">
+            <div className="ai-assistant-avatar"><Sparkles size={18}/></div>
+            <div className="ai-header-title">
+              <strong>DentalCare AI</strong>
+              <small><span className="ai-online"/>{configured?'Online':'Setup required'}</small>
+            </div>
+            <button type="button" className="btn secondary ai-new-btn" onClick={newChat} disabled={busy||loading}>
+              <Plus size={14}/><span>New chat</span>
+            </button>
+          </div>
+          <div className="ai-history-strip" role="tablist" aria-label="Recent conversations">
+            {chats.map(chat=>(
+              <button
+                key={chat._id}
+                type="button"
+                className={`ai-history-tab ${id===chat._id?'selected':''}`}
+                onClick={()=>openChat(chat._id)}
+                disabled={busy||loading}
+                title={chat.title}
+              >
+                <MessageSquare size={13}/>
+                <span>{chat.title}</span>
+              </button>
+            ))}
+            {!chats.length&&!loading&&<span className="ai-history-empty">No previous chats</span>}
+          </div>
+          {id&&<button type="button" className="icon-button ai-delete-btn" aria-label="Delete conversation" title="Delete conversation" disabled={busy||loading} onClick={removeChat}><Trash2 size={16}/></button>}
+        </header>
         <div className="ai-messages" aria-busy={busy||loading}>
           {loading?<div className="ai-welcome"><LoaderCircle className="ai-spin"/><p>Loading conversations…</p></div>:!messages.length?<div className="ai-welcome"><div className="ai-welcome-icon"><Sparkles size={32}/></div><span className="eyebrow">A CLEARER PICTURE OF YOUR CLINIC</span><h2>What would you like to know?</h2><p>Ask in English, Urdu or Roman Urdu.<br/>Your answers are grounded in your clinic’s records.</p><div className="ai-suggestions">{suggestions.map(([label,prompt,Icon])=><button key={label} disabled={busy||!configured} onClick={()=>send(null,prompt)}><Icon size={20}/><strong>{label}</strong><span>{prompt}</span><ArrowUpRight size={15}/></button>)}</div></div>:messages.map((m,i)=><article key={i} className={`ai-message ${m.role}`}><span className="ai-message-label">{m.role==='user'?'You':'DentalCare Assistant'}</span>{m.role==='assistant'?<Answer text={m.content}/>:<p dir="auto">{m.content}</p>}{m.role==='user'&&(m.range?.from||m.range?.to)&&<small>Preferred dates: {m.range.from||'Any'} → {m.range.to||'Any'}</small>}{!!m.sources?.length&&<details className="ai-sources"><summary>Records checked · {m.sources.length} {m.sources.length===1?'query':'queries'}</summary>{m.sources.map((s,j)=><div key={j}><Link href={s.url}>{s.dataset} <ArrowUpRight size={12}/></Link><span>{s.totals.count} matching records{s.hasMore?` · ${s.shown} shown to AI`:''}</span><small>{Object.entries(s.filters).filter(([k])=>k!=='dataset').map(([k,v])=>`${k}: ${v}`).join(' · ')||'All records'} · Dates use {s.dateField}</small>{Object.entries(s.totals).filter(([k])=>k!=='count').map(([k,v])=><small key={k}>{k}: PKR {Number(v).toLocaleString('en-PK')}</small>)}<small>Checked {new Date(s.checkedAt).toLocaleString()}</small></div>)}</details>}</article>)}
           {busy&&<div className="ai-thinking" role="status"><LoaderCircle size={17} className="ai-spin"/>{status}</div>}<div ref={bottom}/>
