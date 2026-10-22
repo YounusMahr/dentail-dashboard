@@ -2,12 +2,12 @@
 import { useEffect,useState,useCallback } from 'react';
 import { useParams,useSearchParams,useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus,ArrowUpRight,Check,FileText,FlaskConical,CalendarDays,Wallet,Copy,RefreshCw,Search,HeartPulse,Globe,Users,MessageSquare,ArrowRight,Printer,Clock3,Activity,QrCode,Smartphone,Send,CheckCircle2,XCircle,LogOut } from 'lucide-react';
+import { Plus,ArrowUpRight,Check,FileText,FlaskConical,CalendarDays,Wallet,Copy,RefreshCw,Search,HeartPulse,Users,MessageSquare,ArrowRight,Printer,Clock3,Activity,QrCode,Smartphone,Send,CheckCircle2,XCircle,LogOut } from 'lucide-react';
 import { careSections,clinicalRoles } from '@/lib/care-schema';
 import ToothPicker from '../../[module]/tooth-picker';
 import Dialog from '@/components/dialog';
 import VoiceDraft from '@/components/voice-draft';
-const tabs=[['plans','Plans',HeartPulse],['sessions','Sessions',CalendarDays],['prescriptions','Prescriptions',FileText],['labs','Lab work',FlaskConical],['waitlist','Waiting list',Clock3],['portal','Patient access',Users],['insights','Practice insights',Activity],['website','Website',Globe],['automation','Message templates',MessageSquare]];
+const tabs=[['plans','Plans',HeartPulse],['sessions','Sessions',CalendarDays],['prescriptions','Prescriptions',FileText],['labs','Lab work',FlaskConical],['waitlist','Waiting list',Clock3],['portal','Patient access',Users],['insights','Practice insights',Activity],['automation','Message templates',MessageSquare]];
 const money=n=>Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:2});
 const blankMedicine=()=>({name:'',strength:'',dose:'',frequency:'',duration:'',instructions:''});
 export default function CareWorkspace(){
@@ -66,7 +66,7 @@ export default function CareWorkspace(){
  return <>
  <div className="top"><div><div className="eyebrow">CONNECTED DENTAL CARE</div><h1>{title}</h1><p className="muted">{schema?.subtitle||({portal:'Give patients a private, expiring link to their own records.',insights:'See unfinished care, lab delays and recorded treatment margins.',automation:'Prepare bilingual messages now. Connect your chosen provider later.'})[section]}</p></div><div className="row"><button className="icon-button" aria-label="Refresh" onClick={load}><RefreshCw size={17}/></button>{schema&&canWrite&&<button onClick={()=>openEdit()}><Plus size={16}/>Add {section==='website'?'page':section==='prescriptions'?'prescription':section==='sessions'?'session':section==='plans'?'plan':section==='labs'?'lab case':'patient'}</button>}</div></div>
  {selectedRecord&&<div className="notice-panel">Showing the record selected in search. <button className="secondary" onClick={()=>router.push(`/dashboard/care/${section}`)}>Show all records</button></div>}
- <nav className="care-tabs" aria-label="Care workspace">{tabs.filter(([key])=>(!['website','automation','insights'].includes(key)||user?.role==='clinic_admin')&&(key!=='prescriptions'||clinical)).map(([key,label,Icon])=><Link href={`/dashboard/care/${key}`} key={key} className={key===section?'active':''}><Icon size={16}/>{label}</Link>)}</nav>
+ <nav className="care-tabs" aria-label="Care workspace">{tabs.filter(([key])=>(!['automation','insights'].includes(key)||user?.role==='clinic_admin')&&(key!=='prescriptions'||clinical)).map(([key,label,Icon])=><Link href={`/dashboard/care/${key}`} key={key} className={key===section?'active':''}><Icon size={16}/>{label}</Link>)}</nav>
  {notifyError}{message&&<div role="status" className="success">{message}</div>}
  {!data&&!error&&<div className="skeleton h-64"/>}
  {data&&schema&&<div className="care-filter"><div className="relative"><Search size={16}/><input aria-label="Search records" placeholder="Search records…" value={search} onChange={e=>setSearch(e.target.value)}/></div>{section!=='website'&&<select aria-label="Filter patient" value={patientFilter} onChange={e=>setPatientFilter(e.target.value)}><option value="">All patients</option>{options.patients?.map(p=><option key={p._id} value={p._id}>{p.name}</option>)}</select>}<span>{records.length} records</span></div>}
