@@ -12,7 +12,7 @@ export async function createClinicalRecord(module, input, user, record) {
   if (input.appointmentId) {
     if (!ObjectId.isValid(input.appointmentId)) throw new Error('Invalid appointment');
     appointment = await database.collection('appointments').findOne({ _id: new ObjectId(input.appointmentId), clinicId: user.clinicId, patientId: record.patientId });
-    if (!appointment || module === 'treatments' && appointment.doctorId !== record.doctorId) throw new Error('Appointment must belong to this patient and dentist');
+    if (!appointment || record.doctorId && appointment.doctorId !== record.doctorId || module === 'treatments' && appointment.doctorId !== record.doctorId) throw new Error('Appointment must belong to this patient and dentist');
     record.appointmentId = input.appointmentId;
   }
   if (module === 'treatments') {
@@ -32,6 +32,12 @@ export async function createClinicalRecord(module, input, user, record) {
   if (input.initialPayment && (!(amount > 0) || amount > record.totalAmount || !['cash','card','bank_transfer','easypaisa_jazzcash'].includes(method))) throw new Error('Enter a valid upfront payment within the invoice total');
   try {
     await session.withTransaction(async () => {
+      if (appointment && (invoice || module === 'invoices')) {
+        const existingInvoice = await database.collection('invoices').findOne({ clinicId: user.clinicId, appointmentId: String(appointment._id), status: { $ne: 'cancelled' } }, { projection: { _id: 1 }, session });
+        if (existingInvoice) throw new Error('This visit already has an invoice. Open it to receive payment or review its items.');
+        if (invoice) invoice.visitInvoiceKey = String(appointment._id);
+        else record.visitInvoiceKey = String(appointment._id);
+      }
       if (amount) Object.assign(record, { paidAmount: amount, balanceAmount: money(record.totalAmount - amount), status: amount === record.totalAmount ? 'paid' : 'partially_paid' });
       await database.collection(module).insertOne({ _id: recordId, ...record, ...stamp }, { session });
       if (appointment && input.completeAppointment) await database.collection('appointments').updateOne({ _id: appointment._id, clinicId: user.clinicId }, { $set: { status: 'completed', updatedAt: new Date() } }, { session });

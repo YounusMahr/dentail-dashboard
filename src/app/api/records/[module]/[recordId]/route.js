@@ -28,7 +28,7 @@ export async function PATCH(request, { params }) {
     if(ctx.module==='invoices'&&input.action==='void'){
       if(ctx.user.role!=='clinic_admin')return fail('Only administrators can void invoices',403);
       const block=await writeBlock(ctx.user);if(block)return fail(block,403);
-      const result=await ctx.collection.updateOne({...ctx.filter,paidAmount:0,status:{$ne:'cancelled'}},{$set:{status:'cancelled',balanceAmount:0,updatedAt:new Date()}});
+      const result=await ctx.collection.updateOne({...ctx.filter,paidAmount:0,status:{$ne:'cancelled'}},{$set:{status:'cancelled',balanceAmount:0,updatedAt:new Date()},$unset:{visitInvoiceKey:''}});
       return result.modifiedCount?ok({success:true}):fail('Only unpaid invoices can be voided',409);
     }
     const changes = await cleanRecord(ctx.module, input, ctx.user, ctx.existing);
