@@ -87,9 +87,10 @@ try{
  const target=await(await req('/api/records/doctors?record='+doctorId,{cookie:admin})).json();test(target.records.length===1&&target.records[0]._id===doctorId,'Record link loads exact doctor');
  const cross=await(await req('/api/records/doctors?record='+doctorId,{cookie:other})).json();test(cross.records.length===0,'Record filter cannot bypass clinic scope');
  test((await req('/dashboard/care/sessions?record='+session.insertedId,{cookie:admin})).status===200,'Session result route renders');
- await database.collection('subscriptionPlans').insertOne({slug:'starter',maxDoctors:10,maxPatients:200,maxStaff:10});
+ await database.collection('subscriptions').insertOne({clinicId,status:'expired',periodEndsAt:new Date('2020-01-01')});
+ test((await req('/api/subscription',{cookie:admin})).status===404&&(await req('/dashboard/subscription',{cookie:admin})).status===404,'Subscription pages and API removed');
  const rosterBase={newPassword:password,email:'schedule1@qa.invalid',name:'Dr. Schedule One',phone:'03001112222',specialization:'General Dentist',consultationFee:2000,slotMinutes:30,workingDays:'monday,tuesday,wednesday,thursday,friday,saturday,sunday',startTime:'09:00',endTime:'17:00',breakStart:'13:00',breakEnd:'14:00',chairName:'Chair 1',active:true};
- const firstRoster=await req('/api/records/doctors',{cookie:admin,body:rosterBase});assert.equal(firstRoster.status,201);const firstDoctor=(await firstRoster.json()).id;
+ const firstRoster=await req('/api/records/doctors',{cookie:admin,body:rosterBase});assert.equal(firstRoster.status,201);const firstDoctor=(await firstRoster.json()).id;test(!!firstDoctor,'Expired legacy subscription does not block clinic work');
  const secondRoster=await req('/api/records/doctors',{cookie:admin,body:{...rosterBase,name:'Dr. Schedule Two',email:'schedule2@qa.invalid'}});assert.equal(secondRoster.status,201);const secondDoctor=(await secondRoster.json()).id;
  test((await req('/api/records/doctors',{cookie:admin,body:{...rosterBase,name:'Invalid Days',email:'invalid@qa.invalid',workingDays:'noday'}})).status===400,'Invalid roster days rejected');
  test((await req('/api/records/doctors',{cookie:admin,body:{...rosterBase,name:'Invalid Break',email:'break@qa.invalid',breakStart:'18:00'}})).status===400,'Invalid break rejected');

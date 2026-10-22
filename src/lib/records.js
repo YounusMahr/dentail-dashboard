@@ -16,13 +16,6 @@ export async function cleanRecord(module, input, user, existing = null, options 
   const database = await db(), record = {};
   const block = await writeBlock(user);
   if (block) throw new Error(block);
-  if (!existing && ['patients', 'doctors', 'staff'].includes(module)) {
-    const subscription = await database.collection('subscriptions').findOne({ clinicId: user.clinicId }, { sort: { createdAt: -1 } });
-    const plan = await database.collection('subscriptionPlans').findOne({ slug: subscription?.plan || 'starter' });
-    const limits = plan ? { patients: Number(plan.maxPatients), doctors: Number(plan.maxDoctors), staff: Number(plan.maxStaff) } : { patients: 200, doctors: 1, staff: 2 };
-    const count = await database.collection(module === 'staff' ? 'users' : module).countDocuments({ clinicId: user.clinicId });
-    if (count >= limits[module]) throw new Error(`${module} limit reached for this plan`);
-  }
   for (const [key, , type, required] of schema.fields) {
     if (!(key in input)) continue;
     let value = input[key];

@@ -42,7 +42,6 @@ export async function POST(request, { params }) {
           { name: 'Scaling & Polishing', standardFee: 3000, durationMinutes: 30 },
           { name: 'Tooth Restoration / Filling', standardFee: 4000, durationMinutes: 30 },
         ].map(item => ({ ...item, clinicId, active: true, createdAt: new Date() })), { session });
-        await database.collection('subscriptions').insertOne({ clinicId, plan: 'starter', status: 'trialing', trialEndsAt: new Date(Date.now() + 14 * 86400000), periodEndsAt: new Date(Date.now() + 14 * 86400000), createdAt: new Date() }, { session });
       });
       await createSession(userId);
       return ok({ success: true, slug }, 201);

@@ -19,7 +19,7 @@ async function customPage(slug,pageSlug,preview){
 }
 export async function generateMetadata({params,searchParams}){
   const {slug,pageSlug}=await params,preview=(await searchParams).preview==='1';
-  if(builtIn[pageSlug]){const data=await loadClinicSite(slug,preview);if(!data)return {title:'Clinic not found'};const page=data.website.pages[builtIn[pageSlug]];return {title:`${page.title} | ${data.clinic.name}`,description:page.description,robots:preview?{index:false,follow:false}:undefined}}
+  if(builtIn[pageSlug]){const data=await loadClinicSite(slug,preview);if(!data)return {title:'Clinic not found'};const page=data.website.pages[builtIn[pageSlug]];return {title:`${page.title} | ${data.clinic.name}`,description:page.description,icons:{icon:brandingUrls(data.clinic).faviconUrl||'/dentalcare-icon.svg'},robots:preview?{index:false,follow:false}:undefined}}
   const result=await customPage(slug,pageSlug,preview);
   return result?{title:`${result.page.title} | ${result.clinic.name}`,description:result.page.description,robots:preview?{index:false,follow:false}:undefined}:{title:'Page not found'};
 }

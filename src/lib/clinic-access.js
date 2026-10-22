@@ -1,2 +1,8 @@
-import { ObjectId } from 'mongodb';import { db } from './db';
-export async function writeBlock(user){if(!user?.clinicId)return 'No clinic assigned';const database=await db();const clinic=await database.collection('clinics').findOne({_id:new ObjectId(user.clinicId)});if(!clinic||clinic.status!=='active')return 'Clinic is suspended';const sub=await database.collection('subscriptions').findOne({clinicId:user.clinicId},{sort:{createdAt:-1}});if(!sub)return null;const end=sub.status==='trialing'?sub.trialEndsAt||sub.periodEndsAt:sub.periodEndsAt;if(!['trialing','active'].includes(sub.status)||end&&new Date(end)<new Date())return 'Subscription is inactive or expired';return null;}
+import { ObjectId } from 'mongodb';
+import { db } from './db';
+
+export async function writeBlock(user) {
+  if (!user?.clinicId || !ObjectId.isValid(user.clinicId)) return 'No clinic assigned';
+  const clinic = await (await db()).collection('clinics').findOne({ _id: new ObjectId(user.clinicId) }, { projection: { status: 1 } });
+  return clinic?.status === 'active' ? null : 'Clinic is inactive';
+}
