@@ -9,6 +9,6 @@ export async function GET(request,{params}){
   try{const database=await db(),record=await related(database,'prescriptions',(await params).recordId,user.clinicId);
     if(user.role==='dentist'&&record.doctorId!==user.doctorId)return fail('Unauthorized',403);
     const [patient,doctor,clinic]=await Promise.all([related(database,'patients',record.patientId,user.clinicId),related(database,'doctors',record.doctorId,user.clinicId),database.collection('clinics').findOne({_id:new ObjectId(user.clinicId)})]);
-    return new Response(prescriptionHtml(record,patient,doctor,clinic),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'private, no-store','Referrer-Policy':'no-referrer'}});
+    return new Response(prescriptionHtml(record,patient,doctor,clinic,{notifyOnPrint:record.status==='issued'}),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'private, no-store','Referrer-Policy':'no-referrer'}});
   }catch(e){return fail(e.message,404)}
 }

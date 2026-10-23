@@ -2,13 +2,13 @@ import { ObjectId } from 'mongodb';
 import { db } from './db';
 import { hashPassword } from './auth';
 import { cleanRecord } from './records';
-import { money } from './care-validation.mjs';
+import { medications, money, validDate } from './care-validation.mjs';
 
 // Related writes commit together: a failed payment or recall cannot leave half a visit.
 export async function createClinicalRecord(module, input, user, record) {
   const database = await db(), session = database.client.startSession(), recordId = new ObjectId();
   const stamp = { clinicId: user.clinicId, createdAt: new Date(), updatedAt: new Date() };
-  let invoice, recall, appointment;
+  let invoice, recall, appointment, prescriptionDraft;
   if (input.appointmentId) {
     if (!ObjectId.isValid(input.appointmentId)) throw new Error('Invalid appointment');
     appointment = await database.collection('appointments').findOne({ _id: new ObjectId(input.appointmentId), clinicId: user.clinicId, patientId: record.patientId });
@@ -16,6 +16,22 @@ export async function createClinicalRecord(module, input, user, record) {
     record.appointmentId = input.appointmentId;
   }
   if (module === 'treatments') {
+    if (input.prescriptionDraft) {
+      const draft = input.prescriptionDraft;
+      if (!appointment) throw new Error('Choose the linked appointment for the prescription');
+      const existingPrescription = await database.collection('prescriptions').findOne({ clinicId: user.clinicId, appointmentId: String(appointment._id) });
+      if (existingPrescription?.status === 'issued') throw new Error('Prescription already issued. Create a revision before editing medicines.');
+      const rows = Array.isArray(draft.medications) ? draft.medications.filter(row => Object.values(row).some(value => String(value || '').trim())) : [];
+      if (draft.reviewDate && !validDate(draft.reviewDate)) throw new Error('Choose a valid review date');
+      prescriptionDraft = {
+        medications: rows.length ? medications(rows) : [],
+        language: ['english', 'urdu', 'bilingual'].includes(draft.language) ? draft.language : 'bilingual',
+        diagnosis: String(record.diagnosis || '').slice(0, 12000),
+        instructionsEn: String(draft.instructionsEn || '').trim().slice(0, 12000),
+        instructionsUr: String(draft.instructionsUr || '').trim().slice(0, 12000),
+        reviewDate: draft.reviewDate || '',
+      };
+    }
     if (input.completeAppointment && !appointment) throw new Error('Choose the appointment to complete');
     if (input.scheduleFollowup) {
       if (String(input.followupDueDate) < new Date().toLocaleDateString('en-CA', { timeZone:user.timezone||'Asia/Karachi' })) throw new Error('Recall date cannot be in the past');
@@ -40,6 +56,7 @@ export async function createClinicalRecord(module, input, user, record) {
       }
       if (amount) Object.assign(record, { paidAmount: amount, balanceAmount: money(record.totalAmount - amount), status: amount === record.totalAmount ? 'paid' : 'partially_paid' });
       await database.collection(module).insertOne({ _id: recordId, ...record, ...stamp }, { session });
+      if (prescriptionDraft) await database.collection('prescriptions').updateOne({ clinicId: user.clinicId, appointmentId: String(appointment._id), status: 'draft' }, { $set: { ...prescriptionDraft, updatedAt: new Date() }, $setOnInsert: { clinicId: user.clinicId, appointmentId: String(appointment._id), patientId: record.patientId, doctorId: record.doctorId, status: 'draft', revision: 1, createdAt: new Date() } }, { upsert: true, session });
       if (appointment && input.completeAppointment) await database.collection('appointments').updateOne({ _id: appointment._id, clinicId: user.clinicId }, { $set: { status: 'completed', updatedAt: new Date() } }, { session });
       if (recall) await database.collection('follow-ups').insertOne({ ...recall, treatmentRecordId: String(recordId), ...stamp }, { session });
       if (invoice) await database.collection('invoices').insertOne({ ...invoice, treatmentRecordId: String(recordId), appointmentId: record.appointmentId || '', ...stamp }, { session });

@@ -11,15 +11,15 @@ export async function GET(request) {
   const days=Array.from({length:7},(_,i)=>{const d=new Date(`${date}T12:00:00Z`);d.setUTCDate(d.getUTCDate()-6+i);return d.toISOString().slice(0,10)});
   const aq=user.role==='dentist'?{...q,doctorId:user.doctorId}:q;
   const [patients,appointments,invoices,followUps,clinic,dayAppointments,weekAppointments,recentPatients,doctors,queueInvoices,queueRecalls,queueAppointments]=await Promise.all([
-    database.collection('patients').countDocuments(q),database.collection('appointments').countDocuments(aq),database.collection('invoices').find({...q,status:{$ne:'cancelled'}},{projection:{paidAmount:1,balanceAmount:1}}).toArray(),
+    database.collection('patients').countDocuments(q),database.collection('appointments').countDocuments({...aq,deletedAt:{$exists:false}}),database.collection('invoices').find({...q,status:{$ne:'cancelled'}},{projection:{paidAmount:1,balanceAmount:1}}).toArray(),
     database.collection('follow-ups').countDocuments({...q,status:'pending'}),database.collection('clinics').findOne({_id:new ObjectId(user.clinicId)},{projection:{name:1,slug:1}}),
-    database.collection('appointments').find({...aq,appointmentDate:date},{projection:{patientId:1,doctorId:1,serviceId:1,startsAt:1,endsAt:1,status:1}}).sort({startsAt:1}).toArray(),
-    database.collection('appointments').find({...aq,appointmentDate:{$gte:days[0],$lte:date}},{projection:{appointmentDate:1,status:1}}).toArray(),
+    database.collection('appointments').find({...aq,deletedAt:{$exists:false},appointmentDate:date},{projection:{patientId:1,doctorId:1,serviceId:1,startsAt:1,endsAt:1,status:1}}).sort({startsAt:1}).toArray(),
+    database.collection('appointments').find({...aq,deletedAt:{$exists:false},appointmentDate:{$gte:days[0],$lte:date}},{projection:{appointmentDate:1,status:1}}).toArray(),
     database.collection('patients').find(q,{projection:{name:1,phone:1,createdAt:1}}).sort({createdAt:-1,_id:-1}).limit(4).toArray(),
     database.collection('doctors').find({...q,active:true},{projection:{name:1,specialization:1}}).limit(4).toArray(),
     user.role==='dentist'?[]:database.collection('invoices').find({...q,status:{$in:['unpaid','partially_paid']},balanceAmount:{$gt:0}},{projection:{patientId:1,appointmentId:1,invoiceNumber:1,balanceAmount:1}}).sort({createdAt:-1}).limit(4).toArray(),
     database.collection('follow-ups').find({...q,status:'pending',dueDate:{$lte:today}},{projection:{patientId:1,dueDate:1,reason:1}}).sort({dueDate:1}).limit(4).toArray(),
-    database.collection('appointments').find({...aq,appointmentDate:today,status:{$in:['checked_in','in_progress','confirmed','pending']}},{projection:{patientId:1,startsAt:1,status:1}}).sort({startsAt:1}).limit(8).toArray()
+    database.collection('appointments').find({...aq,deletedAt:{$exists:false},appointmentDate:today,status:{$in:['checked_in','in_progress','confirmed','pending']}},{projection:{patientId:1,startsAt:1,status:1}}).sort({startsAt:1}).limit(8).toArray()
   ]);
   const ids=(field)=>[...dayAppointments,...queueInvoices,...queueRecalls,...queueAppointments].map(x=>x[field]).filter(x=>x&&ObjectId.isValid(x)).map(x=>new ObjectId(x));
   const [patientNames,doctorNames,serviceNames]=await Promise.all(['patients','doctors','services'].map((collection,i)=>database.collection(collection).find({...q,_id:{$in:ids(['patientId','doctorId','serviceId'][i])}},{projection:{name:1}}).toArray()));

@@ -1,0 +1,21 @@
+name: Care reminders
+
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Queue and send due reminders
+        env:
+          REMINDER_URL: https://dentail-dashboard.vercel.app/api/reminders/run
+          REMINDER_CRON_SECRET: ${{ secrets.REMINDER_CRON_SECRET }}
+        run: |
+          test -n "$REMINDER_CRON_SECRET"
+          curl --fail-with-body --silent --show-error --retry 2 --retry-delay 5 --max-time 120 \
+            -X POST "$REMINDER_URL" \
+            -H "Authorization: Bearer $REMINDER_CRON_SECRET"

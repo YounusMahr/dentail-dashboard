@@ -6,6 +6,7 @@ import { fail, ok, string } from '@/lib/http';
 import { sameOrigin } from '@/lib/auth';
 import { chairSlots } from '@/lib/availability.mjs';
 import { bookVisit } from '@/lib/visit-booking';
+export const maxDuration = 30;
 import { pakistanMobile } from '@/lib/pakistan-phone.mjs';
 
 async function clinicFor(slug) { return (await db()).collection('clinics').findOne({ slug, status: 'active' }); }

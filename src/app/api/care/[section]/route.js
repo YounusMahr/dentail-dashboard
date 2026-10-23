@@ -9,7 +9,6 @@ import { careCollections,clinicalRoles,teamRoles } from '@/lib/care-schema';
 import { medications,money,today,matchesSlot,minutes } from '@/lib/care-validation.mjs';
 import { enqueue,queueReminders,publicMessagingSettings,saveMessagingSettings,dispatchPendingNotifications,dispatchSingleNotification } from '@/lib/messaging';
 import { createOrConnectInstance, disconnectInstance, getLiveConnection, sendEvolutionText } from '@/lib/evolution';
-import {queueEmail,dispatchEmailOutbox} from '@/lib/email-notifications';
 
 const viewExtras=['insights','portal','automation'];
 export async function GET(request,{params}) {
@@ -20,7 +19,7 @@ export async function GET(request,{params}) {
   if(section==='automation'){
     if(user.role!=='clinic_admin')return fail('Admin access required',403);
     const settings=await publicMessagingSettings(user.clinicId);
-    return ok({settings,records:await database.collection('notificationOutbox').find(q).sort({createdAt:-1}).limit(100).toArray()});
+    return ok({settings});
   }
   const [patients,doctors,services,plans,sessions,appointments,payments,labs]=await Promise.all([
     database.collection('patients').find(q,{projection:{name:1,phone:1,whatsappConsent:1,preferredLanguage:1}}).sort({name:1}).toArray(),
@@ -28,7 +27,7 @@ export async function GET(request,{params}) {
     database.collection('services').find(q,{projection:{name:1,standardFee:1}}).toArray(),
     database.collection('treatmentPlans').find(q).sort({createdAt:-1}).toArray(),
     database.collection('careSessions').find(q).sort({scheduledDate:1}).toArray(),
-    database.collection('appointments').find({...q,appointmentDate:{$gte:today()}}).sort({appointmentDate:1,startsAt:1}).limit(300).toArray(),
+    database.collection('appointments').find({...q,deletedAt:{$exists:false},appointmentDate:{$gte:today()}}).sort({appointmentDate:1,startsAt:1}).limit(300).toArray(),
     database.collection('payments').find(q,{projection:{amount:1,sessionId:1,invoiceId:1}}).toArray(),
     database.collection('labCases').find(q).toArray()
   ]);
@@ -175,7 +174,6 @@ export async function POST(request,{params}) {
       const changed=await collection.updateOne({...q,_id:existing._id,status:'draft'},{$set:{status:'issued',issuedAt:new Date(),issuedBy:String(user._id)},$inc:{version:1}});
       if(!changed.modifiedCount)throw new Error('Prescription is already issued');
       await audit(database,user,section,existing._id,'issue');
-      try{if(await queueEmail({clinicId:user.clinicId,patientId:existing.patientId,type:'prescription_issued',eventKey:`prescription:${existing._id}:issued`,details:['Your dentist has issued a prescription. Contact the clinic for a private patient access link.'],sourceId:String(existing._id)}))await dispatchEmailOutbox(user.clinicId)}catch{console.error('Prescription issued; email notification remains pending')}
       return ok({success:true});
     }
     if(section==='website'&&['publish','unpublish'].includes(action)){

@@ -9,8 +9,8 @@ export async function queueEmail({clinicId,patientId,type,eventKey,details=[],so
  if(!allowed.has(type))throw new Error('Unknown email notification');
  const database=await db(),patient=await database.collection('patients').findOne({_id:new ObjectId(patientId),clinicId},{session});
  if(!patient?.emailConsent||!emailPattern.test(patient.email||''))return false;
- await database.collection('emailOutbox').updateOne({clinicId,eventKey},{$setOnInsert:{clinicId,patientId,type,eventKey,details:details.map(value=>String(value).slice(0,250)),sourceId:sourceId||'',status:'pending_provider',createdAt:new Date()}},{upsert:true,session});
- return true;
+ const result=await database.collection('emailOutbox').updateOne({clinicId,eventKey},{$setOnInsert:{clinicId,patientId,type,eventKey,details:details.map(value=>String(value).slice(0,250)),sourceId:sourceId||'',status:'pending_provider',createdAt:new Date()}},{upsert:true,session});
+ return result.upsertedCount>0;
 }
 
 export async function dispatchEmailOutbox(clinicId){
@@ -18,8 +18,17 @@ export async function dispatchEmailOutbox(clinicId){
  const database=await db(),items=await database.collection('emailOutbox').find({...(clinicId?{clinicId}:{}),status:'pending_provider'}).sort({createdAt:1}).limit(20).toArray();
  let sent=0,failed=0;
  for(const item of items){
+   if((item.type==='payment_receipt'&&!item.eventKey?.startsWith('print-receipt:'))||(item.type==='prescription_issued'&&!item.eventKey?.startsWith('print-prescription:'))){
+     await database.collection('emailOutbox').updateOne({_id:item._id},{$set:{status:'cancelled',cancelReason:'Print required',updatedAt:new Date()}});continue;
+   }
    const [patient,clinic]=await Promise.all([database.collection('patients').findOne({_id:new ObjectId(item.patientId),clinicId:item.clinicId}),database.collection('clinics').findOne({_id:new ObjectId(item.clinicId)})]);
    if(!patient?.emailConsent||!emailPattern.test(patient.email||'')){await database.collection('emailOutbox').updateOne({_id:item._id},{$set:{status:'cancelled',updatedAt:new Date()}});continue}
+   if(['appointment_confirmation','appointment_reminder'].includes(item.type)&&ObjectId.isValid(item.sourceId||'')){
+     const appointment=await database.collection('appointments').findOne({_id:new ObjectId(item.sourceId),clinicId:item.clinicId});
+     if(!appointment||appointment.deletedAt||['cancelled','no_show'].includes(appointment.status)||!item.eventKey.endsWith(`:${appointment.appointmentDate}:${appointment.startsAt}`)){
+       await database.collection('emailOutbox').updateOne({_id:item._id},{$set:{status:'cancelled',cancelReason:'Appointment changed or cancelled',updatedAt:new Date()}});continue;
+     }
+   }
    const clinicName=clinic?.name||'Dental Clinic',subjects={appointment_confirmation:'Appointment confirmation',appointment_reminder:'Appointment reminder',session_reminder:'Treatment session reminder',follow_up:'Dental follow-up reminder',payment_receipt:'Payment receipt',prescription_issued:'Prescription ready'};
    const subject=`${clinicName} · ${subjects[item.type]}`;
    const paragraphs=[`Hello ${patient.name||'Patient'},`,`${subjects[item.type]} from ${clinicName}.`,...(item.details||[]),'For questions, contact the clinic directly.'];

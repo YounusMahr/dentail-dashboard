@@ -2,11 +2,12 @@
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Sparkles, LayoutDashboard, CalendarDays, Users, Stethoscope, Receipt, BellRing, UserRound, HeartPulse, ChartNoAxesCombined, Settings2, ShieldCheck, Search, Menu, X, ChevronRight, LogOut, Globe2 } from 'lucide-react';
+import { Sparkles, LayoutDashboard, CalendarDays, Users, Stethoscope, Receipt, BellRing, MessageCircle, UserRound, HeartPulse, ChartNoAxesCombined, Settings2, ShieldCheck, Search, Menu, X, ChevronRight, LogOut, Globe2 } from 'lucide-react';
 import Brand from '@/components/brand';
 import UniversalSearch from '@/components/universal-search';
 import PwaInstallPrompt from '@/components/pwa-install-prompt';
-const icons = { 'AI Assistant': Sparkles, 'Care workspace': HeartPulse, Dashboard: LayoutDashboard, Appointments: CalendarDays, Patients: Users, Treatments: HeartPulse, Invoices: Receipt, 'Follow-ups': BellRing, Doctors: Stethoscope, Services: ShieldCheck, 'Website studio':Globe2, Reports: ChartNoAxesCombined, Staff: Users, 'Clinic settings': Settings2, Platform: LayoutDashboard, 'My account': UserRound };
+import NotificationBell from '@/components/notification-bell';
+const icons = { 'AI Assistant': Sparkles, 'Care workspace': HeartPulse, Dashboard: LayoutDashboard, Appointments: CalendarDays, Patients: Users, Treatments: HeartPulse, Invoices: Receipt, 'Follow-ups': BellRing, WhatsApp: MessageCircle, Doctors: Stethoscope, Services: ShieldCheck, 'Website studio':Globe2, Reports: ChartNoAxesCombined, Staff: Users, 'Clinic settings': Settings2, Platform: LayoutDashboard, 'My account': UserRound };
 export default function WorkspaceShell({ children, links, user, clinicName, clinicSlug, clinicLogo }) {
   const pathname = usePathname(), [open,setOpen] = useState(false), [search,setSearch] = useState(''), [loggingOut,setLoggingOut] = useState(false);
   useEffect(()=>{setOpen(false);setSearch('')},[pathname]);
@@ -27,7 +28,7 @@ export default function WorkspaceShell({ children, links, user, clinicName, clin
     </aside>
     <div className="workspace-body">
       <header className="workspace-header"><div className="flex items-center gap-3"><button className="icon-button mobile-only" aria-label="Open navigation" onClick={()=>setOpen(true)}><Menu size={21}/></button><span className="breadcrumb-root">Workspace</span><ChevronRight size={14} className="breadcrumb-root text-slate-400"/><span className="header-current">{current}</span></div>
-        <div className="header-actions">{user.role!=='platform_owner'&&<UniversalSearch links={links}/>} {clinicSlug&&<Link className="view-clinic-link inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 hover:text-white" href={`/clinic/${clinicSlug}`} target="_blank" rel="noopener noreferrer">Clinic</Link>}{user.role!=='platform_owner'&&<Link className="icon-button" title="Follow-ups" aria-label="Open follow-ups" href="/dashboard/follow-ups"><BellRing size={19}/></Link>}<Link href="/dashboard/account" className="header-user"><span className="avatar">{initials}</span><span className="user-copy"><strong>{user.name}</strong><small>{user.role.replaceAll('_',' ')}</small></span></Link></div>
+        <div className="header-actions">{user.role!=='platform_owner'&&<UniversalSearch links={links}/>} {clinicSlug&&<Link className="view-clinic-link inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 hover:text-white" href={`/clinic/${clinicSlug}`} target="_blank" rel="noopener noreferrer">Clinic</Link>}{user.role!=='platform_owner'&&<NotificationBell/>}<Link href="/dashboard/account" className="header-user"><span className="avatar">{initials}</span><span className="user-copy"><strong>{user.name}</strong><small>{user.role.replaceAll('_',' ')}</small></span></Link></div>
       </header>
       <main id="workspace-content" className="main">{children}<footer className="workspace-footer"><span>DentalCare <span className="text-slate-300 mx-2">/</span> Made for better patient care</span><span className="flex items-center gap-1.5"><ShieldCheck size={14}/> Your clinic workspace</span></footer></main>
     </div>

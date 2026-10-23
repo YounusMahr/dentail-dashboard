@@ -11,7 +11,7 @@ export async function GET(request, { params }) {
   const database = await db();
   const clinicId = user.clinicId;
   const appointment = await database.collection('appointments').findOne({
-    _id: new ObjectId(appointmentId), clinicId,
+    _id: new ObjectId(appointmentId), clinicId, deletedAt: { $exists: false },
     ...(user.role === 'dentist' ? { doctorId: user.doctorId } : {}),
   });
   if (!appointment) return fail('Appointment not found', 404);
@@ -23,7 +23,7 @@ export async function GET(request, { params }) {
     database.collection('treatments').find({ clinicId, appointmentId }, { projection: user.role === 'receptionist' ? { diagnosis: 0, clinicalNotes: 0, prescription: 0 } : undefined }).sort({ createdAt: -1 }).toArray(),
     database.collection('invoices').find({ clinicId, appointmentId, status: { $ne: 'cancelled' } }).sort({ createdAt: -1 }).toArray(),
     database.collection('follow-ups').find({ clinicId, patientId, status: { $in: ['pending', 'contacted'] } }).sort({ dueDate: 1 }).limit(5).toArray(),
-    database.collection('appointments').find({ clinicId, patientId, _id: { $ne: new ObjectId(appointmentId) } }, { projection: { appointmentDate: 1, startsAt: 1, status: 1, doctorId: 1 } }).sort({ appointmentDate: -1, startsAt: -1 }).limit(6).toArray(),
+    database.collection('appointments').find({ clinicId, patientId, deletedAt: { $exists: false }, _id: { $ne: new ObjectId(appointmentId) } }, { projection: { appointmentDate: 1, startsAt: 1, status: 1, doctorId: 1 } }).sort({ appointmentDate: -1, startsAt: -1 }).limit(6).toArray(),
     database.collection('services').find({ clinicId, active: { $ne: false } }, { projection: { name: 1, standardFee: 1 } }).sort({ name: 1 }).toArray(),
     database.collection('visitSessions').findOne({clinicId,appointmentId}),
     user.role==='receptionist'?null:database.collection('prescriptions').findOne({clinicId,appointmentId}),

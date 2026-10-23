@@ -28,7 +28,7 @@ export async function GET(request){
     database.collection('treatmentPlans').find({...q,status:{$nin:['draft','declined']}},{projection:{title:1,summary:1,aftercare:1,toothNumbers:1,status:1,totalFee:1,nextReviewDate:1}}).toArray(),
     database.collection('careSessions').find(q,{projection:{planId:1,title:1,scheduledDate:1,status:1,amountDue:1}}).sort({scheduledDate:1}).toArray(),
     database.collection('invoices').find(q,{projection:{invoiceNumber:1,totalAmount:1,paidAmount:1,balanceAmount:1,feeType:1,status:1}}).toArray(),
-    database.collection('appointments').find(q,{projection:{appointmentDate:1,startsAt:1,doctorId:1,status:1}}).sort({appointmentDate:-1}).limit(100).toArray(),
+    database.collection('appointments').find({...q,deletedAt:{$exists:false}},{projection:{appointmentDate:1,startsAt:1,doctorId:1,status:1}}).sort({appointmentDate:-1}).limit(100).toArray(),
     database.collection('prescriptions').find({...q,status:'issued'},{projection:{createdAt:1,issuedAt:1,revision:1,revisionOf:1,doctorId:1}}).sort({issuedAt:-1}).toArray(),
     database.collection('payments').find(q,{projection:{amount:1,createdAt:1,paymentMethod:1,sessionId:1,invoiceId:1}}).sort({createdAt:-1}).toArray(),
     database.collection('waitingOffers').find({...q,status:'offered',expiresAt:{$gt:new Date()}}).toArray()

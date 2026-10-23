@@ -7,6 +7,7 @@ import { fail, ok } from '@/lib/http';
 import { modules } from '@/lib/modules';
 import { cleanRecord } from '@/lib/records';
 import { bookVisit } from '@/lib/visit-booking';
+export const maxDuration = 30;
 
 function config(module, user, write = false) {
   const schema = modules[module];
@@ -18,6 +19,7 @@ export async function GET(request, { params }) {
   if (!config(module, user)) return fail('Unauthorized', 403);
   const database = await db(), collection = module === 'staff' ? 'users' : module;
   const filter = { clinicId: user.clinicId };
+  if (module === 'appointments') filter.deletedAt = { $exists: false };
   const search = new URL(request.url).searchParams.get('search')?.trim().slice(0, 100);
   if (search && ['patients', 'services', 'doctors', 'staff'].includes(module)) {
     const pattern = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

@@ -2,8 +2,9 @@ import {ObjectId} from 'mongodb';
 import {db, ensureIndexes} from './db';
 import {cleanRecord} from './records';
 import {pakistanMobile} from './pakistan-phone.mjs';
-import {enqueue} from './messaging';
+import {enqueue,dispatchSingleNotification} from './messaging';
 import {queueEmail,dispatchEmailOutbox} from './email-notifications';
+import {after} from 'next/server';
 
 // One booking owns one initial visit, invoice and editable prescription pad.
 export async function bookVisit(input, user, {publicBooking=false}={}) {
@@ -52,8 +53,11 @@ export async function bookVisit(input, user, {publicBooking=false}={}) {
       result={id:String(appointmentId),patientId,invoiceId:String(invoiceId),visitSessionId:String(visitSessionId),prescriptionId:String(prescriptionId),newPatient:isNew,appointment};
     });
   }finally{await session.endSession()}
-  try{await enqueue({clinicId:user.clinicId,patientId:result.patientId,type:'appointment_confirmation',eventKey:`booking:${result.id}:${result.appointment.appointmentDate}:${result.appointment.startsAt}`,values:[result.appointment.appointmentDate,result.appointment.startsAt],sourceCollection:'appointments',sourceId:result.id,sourceFingerprint:`${result.appointment.appointmentDate} ${result.appointment.startsAt}`})}catch{console.error('Booking saved; notification will be recovered by scheduler')}
-  try{if(await queueEmail({clinicId:user.clinicId,patientId:result.patientId,type:'appointment_confirmation',eventKey:`booking:${result.id}:${result.appointment.appointmentDate}:${result.appointment.startsAt}`,details:[`Date: ${result.appointment.appointmentDate}`,`Time: ${result.appointment.startsAt}`],sourceId:result.id}))await dispatchEmailOutbox(user.clinicId)}catch{console.error('Booking saved; email will be recovered by scheduler')}
+  try{
+    const outboxId=await enqueue({clinicId:user.clinicId,patientId:result.patientId,type:'appointment_confirmation',eventKey:`booking:${result.id}:${result.appointment.appointmentDate}:${result.appointment.startsAt}`,values:[result.appointment.appointmentDate,result.appointment.startsAt],sourceCollection:'appointments',sourceId:result.id,sourceFingerprint:`${result.appointment.appointmentDate} ${result.appointment.startsAt}`});
+    if(outboxId)after(async()=>{try{await dispatchSingleNotification(outboxId,user.clinicId)}catch(error){console.error('WhatsApp booking confirmation failed:',error.message)}});
+  }catch{console.error('Booking saved; notification will be recovered by scheduler')}
+  try{if(await queueEmail({clinicId:user.clinicId,patientId:result.patientId,type:'appointment_confirmation',eventKey:`booking:${result.id}:${result.appointment.appointmentDate}:${result.appointment.startsAt}`,details:[`Date: ${result.appointment.appointmentDate}`,`Time: ${result.appointment.startsAt}`],sourceId:result.id}))after(async()=>{try{await dispatchEmailOutbox(user.clinicId)}catch(error){console.error('Booking email failed:',error.message)}})}catch{console.error('Booking saved; email will be recovered by scheduler')}
   const {appointment,...response}=result;
   return response;
 }
