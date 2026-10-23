@@ -18,7 +18,7 @@ export async function GET(request, { params }) {
   if (!clinic) return fail('Clinic not found', 404);
   const database = await db(), clinicId = String(clinic._id);
   const [doctors, services] = await Promise.all([
-    database.collection('doctors').find({ clinicId, active: { $ne: false } }, { projection: { name: 1, specialization: 1, slotMinutes: 1, workingDays: 1, startTime: 1, endTime: 1, breakStart: 1, breakEnd: 1 } }).toArray(),
+    database.collection('doctors').find({ clinicId, active: { $ne: false } }, { projection: { name: 1, specialization: 1, photoDataUrl: 1, slotMinutes: 1, workingDays: 1, startTime: 1, endTime: 1, breakStart: 1, breakEnd: 1 } }).toArray(),
     database.collection('services').find({ clinicId, active: { $ne: false } }, { projection: { name: 1, description: 1, standardFee: 1, durationMinutes: 1 } }).toArray()
   ]);
   const pages=await database.collection('clinicPages').find({clinicId,published:{$ne:null}},{projection:{slug:1,'published.title':1,'published.sortOrder':1}}).toArray();

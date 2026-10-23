@@ -26,6 +26,8 @@ For production: `npm run build`, then `npm start`. Configure HTTPS and database 
 - **Clinic website:** editable pages, descriptions, images and navigation order; administrator-only draft preview and separate published snapshots. Public pages live under `/clinic/<clinic-slug>/<page-slug>` and link to online booking.
 - **Practice insights:** overdue sessions, accepted plans without sessions, lab delays, patient waiting counts and collections less recorded lab/material/provider costs. This is not an accounting profit statement and excludes unrecorded overheads.
 - **Patient profile:** compact overview with contact and medical details, appointments, clinical care, billing, files and patient-specific message history. WhatsApp care messages can be switched on or off from the patient file. Uploaded clinical files can be linked to FDI tooth numbers and remain behind clinic authentication.
+- **Follow-up history:** the Follow-ups page shows WhatsApp and email delivery history with filters; staff no longer add manual follow-up tasks there. The dashboard bell counts queued or failed messages.
+- **Team roster:** optional doctor and staff photos are validated and resized on save. Doctor photos appear on the compact responsive roster and the public clinic team section; staff photos appear in the staff directory and workspace header. The weekly chair timetable wraps into day cards on smaller screens.
 - Existing patient directory, appointments, doctor schedules, treatments, reports and clinic staff/settings remain available.
 
 ## Patient messages
@@ -89,5 +91,7 @@ Logo/favicon uploads accept static PNG, JPEG and WebP up to 2 MB. The server dec
 The top bar searches clinic records by name, phone/email, invoice number, date/status and record ID, grouping results by module. Patient-name searches also find their linked appointments, sessions, plans, invoices and lab work. Results respect clinic and role permissions, show up to five matches per group, and open the exact record (with a Show all records option). Type at least two characters; refine broad searches for more precise results.
 
 Patient add/edit forms include an optional PNG/JPEG/WebP profile image (2 MB maximum). Images are decoded, resized to 160×160 and re-encoded as WebP with metadata removed. They stay in authenticated patient records and appear in the patient list and profile. They are not exposed through a public photo endpoint or AI tools.
+
+Doctor and staff forms use the same validation. Doctor portraits are resized to 480×480 for the public clinic team section; staff portraits use 160×160 and remain in the authenticated workspace.
 
 AI Assistant is the first admin navigation item. Its layout uses the available viewport height; the composer stays visible and the conversation scrolls internally. Responsive layouts retain universal search on smaller screens.

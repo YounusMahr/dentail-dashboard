@@ -3,7 +3,7 @@ import { db } from '@/lib/db';
 import { fail, ok } from '@/lib/http';
 import {ObjectId} from 'mongodb';
 
-export async function GET() {
+export async function GET(request) {
   const user = await currentUser();
   if (!user?.clinicId) return fail('Unauthorized', 401);
   const database = await db(), q = { clinicId: user.clinicId };
@@ -13,6 +13,7 @@ export async function GET() {
     database.collection('services').find({ ...q, active: { $ne: false } }, { projection: { name: 1, standardFee: 1, includesCheckup: 1, category: 1 } }).sort({ name: 1 }).toArray(),
     database.collection('clinics').findOne({_id:new ObjectId(user.clinicId)},{projection:{newPatientCheckupFee:1}}),
   ]);
-  const appointments = await database.collection('appointments').find({...q,deletedAt:{$exists:false},...(user.role==='dentist'?{doctorId:user.doctorId}:{})},{projection:{patientId:1,doctorId:1,serviceId:1,appointmentDate:1,startsAt:1,status:1}}).sort({appointmentDate:-1}).limit(300).toArray();
+  const module=new URL(request.url).searchParams.get('module');
+  const appointments = module&&!['treatments','invoices'].includes(module)?[]:await database.collection('appointments').find({...q,deletedAt:{$exists:false},...(user.role==='dentist'?{doctorId:user.doctorId}:{})},{projection:{patientId:1,doctorId:1,serviceId:1,appointmentDate:1,startsAt:1,status:1}}).sort({appointmentDate:-1}).limit(300).toArray();
   return ok({ patients, doctors, services, appointments, currency:user.currency, timezone:user.timezone, newPatientCheckupFee:clinic?.newPatientCheckupFee??500 });
 }

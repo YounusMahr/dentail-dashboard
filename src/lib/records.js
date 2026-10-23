@@ -102,7 +102,7 @@ export async function cleanRecord(module, input, user, existing = null, options 
   if(module==='patients'&&record.dateOfBirth&&(Number.isNaN(Date.parse(record.dateOfBirth))||new Date(record.dateOfBirth).toISOString().slice(0,10)!==record.dateOfBirth||record.dateOfBirth>new Date().toLocaleDateString('en-CA',{timeZone:user.timezone||'Asia/Karachi'})))throw new Error('Date of birth must be a valid date in the past');
   if(module==='follow-ups'&&record.status==='contacted')record.lastContactedAt=new Date();
   if(module==='appointments'&&record.status==='cancelled')record.cancellationReason=String(input.cancellationReason||'Cancelled by staff').slice(0,255);
-  if(module==='patients'&&Object.hasOwn(input,'photoDataUrl'))record.photoDataUrl=await cleanPatientPhoto(input.photoDataUrl);
+  if(['patients','doctors','staff'].includes(module)&&Object.hasOwn(input,'photoDataUrl'))record.photoDataUrl=await cleanPatientPhoto(input.photoDataUrl,{size:module==='doctors'?480:160});
   if(!options.skipIndexes)await ensureIndexes();
   return record;
 }

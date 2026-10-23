@@ -58,11 +58,33 @@ export async function GET(request, { params }) {
   }
   if (module === 'appointments' && user.role === 'dentist') filter.doctorId = user.doctorId;
   if (module === 'treatments' && user.role === 'dentist') filter.doctorId = user.doctorId;
-  const projection = module === 'staff' ? { passwordHash: 0 } : module === 'treatments' && user.role === 'receptionist' ? { clinicalNotes: 0, diagnosis: 0 } : {};
+  const projection = {
+    patients:{medicalHistory:0},
+    doctors:{specialtyBio:0},
+    services:{description:0},
+    appointments:{patientNotes:0},
+    treatments:{clinicalNotes:0,diagnosis:0,treatmentRendered:0},
+    invoices:{items:0},
+    staff:{passwordHash:0},
+  }[module]||{};
   const sort = module === 'appointments' ? { appointmentDate: 1, startsAt: 1 } : module === 'follow-ups' ? { dueDate: 1 } : { createdAt: -1 };
-  const records = await database.collection(collection).find(filter, { projection }).sort(sort).skip(query.has('page')?Math.max(0,(Number(query.get('page'))||1)-1)*30:0).limit(query.has('page')?30:300).toArray();
-  const total=await database.collection(collection).countDocuments(filter);
-  return ok({ records,total });
+  const [records,total]=await Promise.all([
+    database.collection(collection).find(filter, { projection }).sort(sort).skip(query.has('page')?Math.max(0,(Number(query.get('page'))||1)-1)*30:0).limit(query.has('page')?30:300).toArray(),
+    database.collection(collection).countDocuments(filter),
+  ]);
+  const references={patients:[],doctors:[],services:[]};
+  if(['appointments','treatments','invoices','follow-ups'].includes(module)){
+    const patientIds=[...new Set(records.map(record=>record.patientId).filter(value=>/^[a-f\d]{24}$/i.test(String(value))))].map(value=>new ObjectId(value));
+    const doctorIds=[...new Set(records.map(record=>record.doctorId).filter(value=>/^[a-f\d]{24}$/i.test(String(value))))].map(value=>new ObjectId(value));
+    const serviceIds=[...new Set(records.map(record=>record.serviceId).filter(value=>/^[a-f\d]{24}$/i.test(String(value))))].map(value=>new ObjectId(value));
+    const [patients,doctors,services]=await Promise.all([
+      patientIds.length?database.collection('patients').find({clinicId:user.clinicId,_id:{$in:patientIds}},{projection:{name:1,phone:1}}).toArray():[],
+      database.collection('doctors').find({clinicId:user.clinicId,$or:[{active:{$ne:false}},...(doctorIds.length?[{_id:{$in:doctorIds}}]:[])]},{projection:{name:1}}).sort({name:1}).toArray(),
+      database.collection('services').find({clinicId:user.clinicId,$or:[{active:{$ne:false}},...(serviceIds.length?[{_id:{$in:serviceIds}}]:[])]},{projection:{name:1}}).sort({name:1}).toArray(),
+    ]);
+    Object.assign(references,{patients,doctors,services});
+  }
+  return ok({ records,total,references });
 }
 
 export async function POST(request, { params }) {
@@ -83,8 +105,8 @@ export async function POST(request, { params }) {
     }
     if (module === 'staff' && record.role === 'dentist') {
       const doctor = await database.collection('doctors').findOne({ clinicId: user.clinicId, email: record.email });
-      if (doctor) await database.collection('doctors').updateOne({ _id: doctor._id }, { $set: { userId: String(result.insertedId) } });
-      else await database.collection('doctors').insertOne({ clinicId: user.clinicId, userId: String(result.insertedId), name: record.name, email: record.email, specialization: 'General Dentist', slotMinutes: 30, workingDays: 'monday,tuesday,wednesday,thursday,friday,saturday', startTime: '10:00', endTime: '20:00', active: true, createdAt: new Date() });
+      if (doctor) await database.collection('doctors').updateOne({ _id: doctor._id }, { $set: { userId: String(result.insertedId), ...(record.photoDataUrl !== undefined ? { photoDataUrl: record.photoDataUrl } : {}) } });
+      else await database.collection('doctors').insertOne({ clinicId: user.clinicId, userId: String(result.insertedId), name: record.name, email: record.email, photoDataUrl: record.photoDataUrl || '', specialization: 'General Dentist', slotMinutes: 30, workingDays: 'monday,tuesday,wednesday,thursday,friday,saturday', startTime: '10:00', endTime: '20:00', active: true, createdAt: new Date() });
     }
     return ok({ id: String(result.insertedId) }, 201);
   } catch (error) { return fail(error.code === 11000 ? 'This record already exists or slot is booked' : error.message,error.code===11000||error.message?.includes('already has a patient file')?409:400); }

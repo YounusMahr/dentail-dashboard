@@ -82,7 +82,7 @@ export async function saveDoctor(record, input, user, existing = null) {
       if (!account && !password && !existing) throw new Error('Set a password for the new doctor login');
       if (account && !['dentist','clinic_admin'].includes(account.role)) throw new Error('Only a dentist account can be linked');
       if (account && String(account._id) === String(user._id) && record.active === false) throw new Error('Cannot deactivate your own account');
-      const accountData = { name: record.name || existing?.name, email, phone: record.phone ?? existing?.phone ?? '', active: record.active ?? existing?.active ?? true, updatedAt: new Date(), ...(password ? { passwordHash: hashPassword(password) } : {}) };
+      const accountData = { name: record.name || existing?.name, email, phone: record.phone ?? existing?.phone ?? '', active: record.active ?? existing?.active ?? true, ...(record.photoDataUrl !== undefined ? { photoDataUrl: record.photoDataUrl } : {}), updatedAt: new Date(), ...(password ? { passwordHash: hashPassword(password) } : {}) };
       if (account) await database.collection('users').updateOne({ _id: account._id }, { $set: accountData }, { session });
       else if (password) { account = { _id: new ObjectId() }; await database.collection('users').insertOne({ _id: account._id, ...accountData, role: 'dentist', clinicId: user.clinicId, createdAt: new Date() }, { session }); }
       const data = { ...record, email, ...(account ? { userId: String(account._id) } : {}), updatedAt: new Date() };

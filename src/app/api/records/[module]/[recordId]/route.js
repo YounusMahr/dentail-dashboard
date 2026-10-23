@@ -7,14 +7,22 @@ import { modules } from '@/lib/modules';
 import { cleanRecord } from '@/lib/records';
 import { writeBlock } from '@/lib/clinic-access';
 
-async function context(request, params) {
+async function context(request, params, requireOrigin=true) {
   const { module, recordId } = await params, user = await currentUser();
-  if (!sameOrigin(request) || !id(recordId) || !modules[module] || !((modules[module].writeRoles || modules[module].roles).includes(user?.role)||module==='doctors'&&user?.role==='dentist')) return null;
+  if ((requireOrigin&&!sameOrigin(request)) || !id(recordId) || !modules[module] || !((modules[module].writeRoles || modules[module].roles).includes(user?.role)||module==='doctors'&&user?.role==='dentist')) return null;
   const collection = (await db()).collection(module === 'staff' ? 'users' : module);
   const filter = { _id: new ObjectId(recordId), clinicId: user.clinicId, ...(module === 'appointments' ? { deletedAt: { $exists: false } } : {}) };
   const existing = await collection.findOne(filter);
   if(module==='doctors'&&user.role==='dentist'&&recordId!==user.doctorId)return null;
   return existing ? { module, user, collection, filter, existing } : null;
+}
+
+export async function GET(request,{params}) {
+  const ctx=await context(request,params,false);
+  if(!ctx)return fail('Not found or unauthorized',404);
+  if(ctx.module==='treatments'&&ctx.user.role==='dentist'&&ctx.existing.doctorId!==ctx.user.doctorId)return fail('Unauthorized',403);
+  const {passwordHash,...record}=ctx.existing;
+  return ok({record});
 }
 
 export async function PATCH(request, { params }) {
@@ -45,7 +53,7 @@ export async function PATCH(request, { params }) {
         await database.collection('auditLogs').insertOne({ clinicId: ctx.user.clinicId, module: ctx.module, recordId: String(ctx.existing._id), actorId: String(ctx.user._id), changedFields: Object.keys(changes), beforeStatus: ctx.existing.status || null, afterStatus: changes.status || ctx.existing.status || null, createdAt: new Date() }, { session });
       }); } finally { await session.endSession(); }
     } else await ctx.collection.updateOne(ctx.filter, { $set: { ...changes, updatedAt: new Date() } });
-    if (ctx.module === 'staff') await (await db()).collection('doctors').updateMany({ clinicId: ctx.user.clinicId, userId: String(ctx.existing._id) }, { $set: { ...(changes.name ? { name: changes.name } : {}), ...(changes.email ? { email: changes.email } : {}), ...(changes.active !== undefined ? { active: changes.active } : {}), updatedAt: new Date() } });
+    if (ctx.module === 'staff') await (await db()).collection('doctors').updateMany({ clinicId: ctx.user.clinicId, userId: String(ctx.existing._id) }, { $set: { ...(changes.name ? { name: changes.name } : {}), ...(changes.email ? { email: changes.email } : {}), ...(changes.active !== undefined ? { active: changes.active } : {}), ...(changes.photoDataUrl !== undefined ? { photoDataUrl: changes.photoDataUrl } : {}), updatedAt: new Date() } });
     return ok({ success: true });
   } catch (error) { return fail(error.code === 11000 ? 'Slot already booked' : error.message); }
 }
