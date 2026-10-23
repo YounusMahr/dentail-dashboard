@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, CalendarDays, HeartPulse, Mail, MapPin, Phone, Plus, Receipt, ShieldAlert, Upload, Wallet } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Camera, HeartPulse, Mail, MapPin, Phone, Plus, Receipt, ShieldAlert, Upload, Wallet } from 'lucide-react';
 import ToothHistory from '@/components/tooth-history';
 import NotificationHistory from '@/components/notification-history';
 
@@ -48,6 +48,27 @@ export default function PatientDetail() {
     } catch (cause) { setError(cause.message); }
     finally { setBusy(false); }
   }
+  async function uploadPhoto(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024 || !['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) { setError('Choose a PNG, JPEG or WebP photo under 2 MB.'); return; }
+    setBusy(true); setError(''); setMessage('');
+    try {
+      const photoDataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error('Could not read the photo'));
+        reader.readAsDataURL(file);
+      });
+      const response = await fetch(`/api/patients/${patientId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photoDataUrl }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not save the photo');
+      setProfile(current => ({ ...current, patient: { ...current.patient, photoDataUrl: result.photoDataUrl } }));
+      setMessage('Patient photo updated.');
+    } catch (cause) { setError(cause.message); }
+    finally { setBusy(false); }
+  }
   async function upload(event) {
     event.preventDefault(); setBusy(true); setError('');
     try {
@@ -77,10 +98,38 @@ export default function PatientDetail() {
   const upcoming = appointments.filter(item => item.appointmentDate >= new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) && !['cancelled', 'no_show'].includes(item.status));
   const initials = patient.name?.split(' ').map(part => part[0]).slice(0, 2).join('') || 'PT';
   return <div className="mx-auto max-w-7xl space-y-4 pb-8">
-    <div className="flex flex-wrap items-center justify-between gap-3"><Link href="/dashboard/patients" className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 hover:underline"><ArrowLeft size={15}/>Patients</Link><div className="flex flex-wrap gap-2"><Link className="btn secondary" href={`/dashboard/care/plans?patient=${patientId}`}><HeartPulse size={14}/>Care plan</Link><Link className="btn" href={`/dashboard/appointments?new=1&patient=${patientId}`}><Plus size={14}/>Book appointment</Link></div></div>
+    <div className="patient-profile-toolbar"><Link href="/dashboard/patients" className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 hover:underline"><ArrowLeft size={15}/>Patients</Link><div className="patient-profile-actions"><Link className="btn secondary" href={`/dashboard/care/plans?patient=${patientId}`}><HeartPulse size={14}/>Care plan</Link><Link className="btn" href={`/dashboard/appointments?new=1&patient=${patientId}`}><Plus size={14}/>Book appointment</Link></div></div>
     {error && <div role="alert" className="error">{error}</div>}{message && <div role="status" className="success">{message}</div>}
-    <section className="overflow-hidden rounded-2xl border border-emerald-950/10 bg-white shadow-[0_12px_35px_rgba(12,54,42,.05)]"><div className="flex flex-wrap items-center gap-4 bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-800 px-5 py-5 text-white"><div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/15 text-lg font-semibold">{patient.photoDataUrl ? <img src={patient.photoDataUrl} alt="" className="h-full w-full object-cover"/> : initials}</div><div className="min-w-0 flex-1"><p className="m-0 text-[10px] font-semibold uppercase tracking-[.16em] text-emerald-200">Patient file</p><h1 className="m-0 mt-1 truncate text-xl font-semibold text-white md:text-2xl">{patient.name}</h1><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-emerald-100"><span className="inline-flex items-center gap-1"><Phone size={12}/>{patient.phone || 'No phone'}</span>{patient.email && <span className="inline-flex items-center gap-1"><Mail size={12}/>{patient.email}</span>}{patient.address && <span className="inline-flex items-center gap-1"><MapPin size={12}/>{patient.address}</span>}</div></div><label className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-3 py-2 text-xs"><input type="checkbox" className="h-4 w-4 accent-emerald-400" checked={patient.whatsappConsent === true} disabled={busy} onChange={event => setWhatsApp(event.target.checked)}/><span>WhatsApp {patient.whatsappConsent ? 'On' : 'Off'}</span></label></div><div className="grid grid-cols-2 divide-x divide-y divide-slate-100 sm:grid-cols-4 sm:divide-y-0">{[[CalendarDays, 'Upcoming', upcoming.length], [HeartPulse, 'Treatments', treatments.length], [Wallet, 'Paid', money(totalPaid)], [Receipt, 'Outstanding', money(outstanding)]].map(([Icon, title, value]) => <div key={title} className="flex items-center gap-2.5 px-4 py-3"><Icon size={17} className="shrink-0 text-emerald-600"/><div><small className="block text-[10px] text-slate-500">{title}</small><strong className="block text-sm text-slate-900">{value}</strong></div></div>)}</div></section>
-    <nav className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1" aria-label="Patient profile sections">{tabs.map(([key, title]) => <button key={key} type="button" onClick={() => setTab(key)} aria-current={tab === key ? 'page' : undefined} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${tab === key ? 'bg-emerald-800 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>{title}{key === 'files' && documents.length ? ` (${documents.length})` : ''}</button>)}</nav>
+    <section className="patient-profile-card" aria-label="Patient profile">
+      <div className="patient-profile-hero">
+        <div className="patient-profile-identity">
+          <div className="patient-profile-avatar">
+            {patient.photoDataUrl ? <img src={patient.photoDataUrl} alt={`${patient.name} profile`}/> : <span>{initials}</span>}
+            <label className="patient-avatar-upload" title="Change patient photo">
+              <Camera size={15}/><span className="sr-only">Change patient photo</span>
+              <input type="file" accept="image/png,image/jpeg,image/webp" aria-label="Change patient photo" disabled={busy} onChange={uploadPhoto}/>
+            </label>
+          </div>
+          <div className="patient-profile-copy">
+            <p className="patient-profile-kicker">Patient file</p>
+            <h1>{patient.name}</h1>
+            <div className="patient-profile-contact">
+              <span><Phone size={14}/>{patient.phone || 'No phone'}</span>
+              {patient.email && <span><Mail size={14}/>{patient.email}</span>}
+              {patient.address && <span><MapPin size={14}/>{patient.address}</span>}
+            </div>
+          </div>
+        </div>
+        <label className="patient-consent-switch">
+          <input type="checkbox" checked={patient.whatsappConsent === true} disabled={busy} onChange={event => setWhatsApp(event.target.checked)}/>
+          <span>WhatsApp {patient.whatsappConsent ? 'On' : 'Off'}</span>
+        </label>
+      </div>
+      <div className="patient-profile-stats">
+        {[[CalendarDays, 'Upcoming', upcoming.length], [HeartPulse, 'Treatments', treatments.length], [Wallet, 'Paid', money(totalPaid)], [Receipt, 'Outstanding', money(outstanding)]].map(([Icon, title, value]) => <div key={title} className="patient-profile-stat"><Icon size={19}/><div><small>{title}</small><strong>{value}</strong></div></div>)}
+      </div>
+    </section>
+    <nav className="patient-profile-tabs" aria-label="Patient profile sections">{tabs.map(([key, title]) => <button key={key} type="button" onClick={() => setTab(key)} aria-current={tab === key ? 'page' : undefined} className={tab === key ? 'is-active' : ''}>{title}{key === 'files' && documents.length ? ` (${documents.length})` : ''}</button>)}</nav>
     {tab === 'overview' && <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]"><section className={card}><h2 className="m-0 border-b border-slate-100 pb-2 text-sm">Patient information</h2><dl className="m-0 grid grid-cols-2 gap-x-4"><Detail title="Phone" value={patient.phone} icon={Phone}/><Detail title="Email" value={patient.email} icon={Mail}/><Detail title="Date of birth" value={patient.dateOfBirth ? day(patient.dateOfBirth) : ''}/><Detail title="Gender" value={label(patient.gender)}/><Detail title="Blood group" value={patient.bloodGroup}/><Detail title="Language" value={patient.preferredLanguage === 'ur' ? 'Urdu' : 'English'}/><div className="col-span-2"><Detail title="Address" value={patient.address} icon={MapPin}/></div></dl>{patient.medicalHistory && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3"><strong className="flex items-center gap-1.5 text-xs text-amber-900"><ShieldAlert size={14}/>Medical history</strong><p className="m-0 mt-1 whitespace-pre-wrap text-xs text-amber-950">{patient.medicalHistory}</p></div>}</section><section className={card}><div className="flex items-center justify-between border-b border-slate-100 pb-2"><h2 className="m-0 text-sm">Appointments</h2><span className="text-xs text-slate-500">{appointments.length} total</span></div><div className="divide-y divide-slate-100">{appointments.slice(0, 6).map(item => <Link key={item._id} href={`/dashboard/visits/${item._id}`} className="flex items-center justify-between gap-3 py-2.5 text-xs hover:text-emerald-700"><span><strong className="block text-slate-900">{day(item.appointmentDate)} · {item.startsAt}</strong><small className="text-slate-500">{doctorName(item.doctorId)} · {serviceName(item.serviceId)}</small></span><span className="shrink-0 capitalize text-slate-500">{label(item.status)}</span></Link>)}{!appointments.length && <Empty>No appointments yet.</Empty>}</div></section><section className={`${card} lg:col-span-2`}><div className="flex items-center justify-between border-b border-slate-100 pb-2"><h2 className="m-0 text-sm">Recent care</h2><button className="text-xs font-medium text-emerald-700" onClick={() => setTab('care')}>View clinical care</button></div><div className="grid gap-x-6 md:grid-cols-2"><div>{treatments.slice(0, 3).map(item => <div key={item._id} className="border-b border-slate-100 py-2.5 text-xs"><strong className="block text-slate-800">{item.treatmentRendered}</strong><small className="text-slate-500">Teeth {item.toothNumbers || '—'} · {day(item.createdAt)}</small></div>)}{!treatments.length && <Empty>No treatment recorded yet.</Empty>}</div><div>{followUps.slice(0, 3).map(item => <div key={item._id} className="border-b border-slate-100 py-2.5 text-xs"><strong className="block text-slate-800">{item.reason}</strong><small className="text-slate-500">Follow-up {day(item.dueDate)} · {label(item.status)}</small></div>)}{!followUps.length && <Empty>No follow-up tasks.</Empty>}</div></div></section></div>}
     {tab === 'care' && <div className="space-y-4"><div className="grid gap-4 lg:grid-cols-2"><section className={card}><h2 className="m-0 border-b border-slate-100 pb-2 text-sm">Treatments & plans</h2><div className="divide-y divide-slate-100">{treatments.map(item => <div key={item._id} className="py-2.5 text-xs"><strong className="block text-slate-900">{item.treatmentRendered}</strong><span className="text-slate-500">{day(item.createdAt)} · Teeth {item.toothNumbers || '—'}</span>{item.diagnosis && <p className="m-0 mt-1 text-slate-600">{item.diagnosis}</p>}</div>)}{plans.map(item => <div key={item._id} className="py-2.5 text-xs"><strong className="block text-slate-900">{item.title}</strong><span className="text-slate-500">Plan · {label(item.status)} · {money(item.totalFee)}</span></div>)}{!treatments.length && !plans.length && <Empty>No clinical records yet.</Empty>}</div></section><section className={card}><h2 className="m-0 border-b border-slate-100 pb-2 text-sm">Sessions, labs & prescriptions</h2><div className="divide-y divide-slate-100">{sessions.map(item => <div key={item._id} className="py-2.5 text-xs"><strong className="block text-slate-900">{item.title}</strong><span className="text-slate-500">Session · {day(item.scheduledDate)} · {label(item.status)}</span></div>)}{labCases.map(item => <div key={item._id} className="py-2.5 text-xs"><strong className="block text-slate-900">{item.title}</strong><span className="text-slate-500">Lab · due {day(item.dueDate)} · {label(item.status)}</span></div>)}{prescriptions.map(item => <a key={item._id} href={`/api/prescriptions/${item._id}/print`} target="_blank" rel="noreferrer" className="block py-2.5 text-xs hover:text-emerald-700"><strong className="block text-slate-900">Prescription · {label(item.status)}</strong><span className="text-slate-500">{item.medications?.length || 0} medicines · A4 print</span></a>)}{!sessions.length && !labCases.length && !prescriptions.length && <Empty>No sessions, lab cases or prescriptions yet.</Empty>}</div></section></div><ToothHistory profile={profile} documents={documents} patientId={patientId}/></div>}
     {tab === 'billing' && <div className="grid gap-4 lg:grid-cols-2"><section className={card}><h2 className="m-0 border-b border-slate-100 pb-2 text-sm">Invoices</h2><div className="divide-y divide-slate-100">{invoices.map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 text-xs"><div><strong className="block text-slate-900">{item.invoiceNumber || 'Invoice'}</strong><span className="text-slate-500">{item.description} · {label(item.status)}</span></div><div className="text-right"><strong className="block">{money(item.totalAmount)}</strong><a href={`/api/invoices/${item._id}/print`} target="_blank" rel="noreferrer" className="text-emerald-700">Print</a></div></div>)}{!invoices.length && <Empty>No invoices yet.</Empty>}</div></section><section className={card}><h2 className="m-0 border-b border-slate-100 pb-2 text-sm">Payments & receipts</h2><div className="divide-y divide-slate-100">{payments.map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 text-xs"><div><strong className="block text-slate-900">{money(item.amount)}</strong><span className="text-slate-500">{day(item.createdAt)} · {label(item.paymentMethod)}</span></div><a href={`/api/payments/${item._id}/receipt`} target="_blank" rel="noreferrer" className="text-emerald-700">Receipt</a></div>)}{!payments.length && <Empty>No payments recorded.</Empty>}</div></section></div>}

@@ -3,6 +3,7 @@ import { currentUser, sameOrigin } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { fail, id, ok } from '@/lib/http';
 import { writeBlock } from '@/lib/clinic-access';
+import { cleanPatientPhoto } from '@/lib/patient-photo.mjs';
 
 async function context(params) {
   const user = await currentUser();
@@ -42,6 +43,15 @@ export async function PATCH(request, { params }) {
   const block = await writeBlock(ctx.user);
   if (block) return fail(block, 403);
   const body = await request.json().catch(() => ({}));
+  if (Object.hasOwn(body, 'photoDataUrl')) {
+    try {
+      const photoDataUrl = await cleanPatientPhoto(body.photoDataUrl);
+      const now = new Date();
+      await ctx.database.collection('patients').updateOne({ _id: ctx.patient._id, clinicId: ctx.user.clinicId }, { $set: { photoDataUrl, updatedAt: now } });
+      await ctx.database.collection('auditLogs').insertOne({ clinicId: ctx.user.clinicId, actorId: String(ctx.user._id), module: 'patients', recordId: ctx.patientId, action: 'photo_updated', createdAt: now });
+      return ok({ success: true, photoDataUrl });
+    } catch (error) { return fail(error.message, 400); }
+  }
   if (typeof body.whatsappConsent !== 'boolean') return fail('Choose whether WhatsApp care messages are enabled', 400);
   const now = new Date();
   await ctx.database.collection('patients').updateOne({ _id: ctx.patient._id, clinicId: ctx.user.clinicId }, { $set: { whatsappConsent: body.whatsappConsent, updatedAt: now } });
