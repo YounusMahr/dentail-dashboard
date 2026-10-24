@@ -13,7 +13,7 @@ export default async function DashboardLayout({ children }) {
     links.splice(links.findIndex(([label]) => label === 'Doctors'), 0, ['WhatsApp','/dashboard/whatsapp']);
     links.push(['Website studio','/dashboard/website'],['Reports','/dashboard/reports'],['Staff','/dashboard/staff'],['Clinic settings','/dashboard/settings']);
   }
-  if (user.role === 'clinic_admin') links.unshift(['AI Assistant','/dashboard/ai']);
+  if (['clinic_admin','receptionist','dentist'].includes(user.role)) links.unshift(['AI Assistant','/dashboard/ai']);
   if (user.role === 'platform_owner') links.splice(0, links.length, ['Platform','/dashboard/platform']);
   links.push(['My account','/dashboard/account']);
   const clinic=user.clinicId&&ObjectId.isValid(user.clinicId)?await (await db()).collection('clinics').findOne({_id:new ObjectId(user.clinicId)},{projection:{name:1,logoVersion:1,slug:1}}):null;

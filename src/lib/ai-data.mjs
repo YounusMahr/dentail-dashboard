@@ -14,8 +14,10 @@ const datasets = {
 };
 export const dataTool = { type:'function', function:{ name:'clinic_records', description:'Read live clinic records and exact database totals. All queries are clinic scoped. Date filters apply to dateField in result: payments/invoices use creation date, appointments appointment date, sessions scheduled date, labs/followups due date. Omit dates for all-time. Outstanding invoice balances are current, not historical. Search patients/doctors/labs by name/title; first resolve patient then use patientId. Lists are paginated; totals/count cover ALL matches. No financial profit data. Clinical notes, prescriptions, contact details and credentials are excluded.', parameters:{type:'object',additionalProperties:false,properties:{dataset:{type:'string',enum:Object.keys(datasets)},from:{type:'string',description:'Inclusive YYYY-MM-DD, optional'},to:{type:'string',description:'Inclusive YYYY-MM-DD, optional'},search:{type:'string',description:'Literal name/title search, optional'},patientId:{type:'string'},status:{type:'string',description:'Exact stored status, optional'},outstanding:{type:'boolean',description:'Invoices with balance > 0 only'},offset:{type:'integer',minimum:0,maximum:200}},required:['dataset']}}};
 const validDate = s => typeof s==='string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s)) && new Date(s).toISOString().slice(0,10)===s;
-export async function readClinicData(database, clinicId, args) {
+export async function readClinicData(database, clinicId, args, actor = null) {
   if (!args || typeof args!=='object' || Array.isArray(args) || !Object.hasOwn(datasets,args.dataset)) throw new Error('Unsupported dataset');
+  if(actor?.role==='receptionist'&&['labs'].includes(args.dataset))throw new Error('This record type is unavailable to reception staff');
+  if(actor?.role==='dentist'&&['invoices','payments'].includes(args.dataset))throw new Error('Financial records are unavailable to dentists in AI Assistant');
   if(Object.keys(args).some(k=>!['dataset','from','to','search','patientId','status','outstanding','offset'].includes(k)))throw new Error('Unsupported filter');
   for(const k of ['from','to'])if(args[k]!==undefined&&!validDate(args[k]))throw new Error('Use valid YYYY-MM-DD dates');
   if(args.from&&args.to&&args.from>args.to)throw new Error('Date range is reversed');
@@ -27,6 +29,7 @@ export async function readClinicData(database, clinicId, args) {
   const offset=args.offset??0;if(!Number.isInteger(offset)||offset<0||offset>200)throw new Error('Offset must be 0–200');
   const clinic=await database.collection('clinics').findOne({_id:new ObjectId(clinicId)},{projection:{timezone:1,currency:1}}),timezone=clinic?.timezone||'Asia/Karachi',currency=clinic?.currency||'PKR';
   const [collection,dateField,fields,path]=datasets[args.dataset],q={clinicId};
+  if(actor?.role==='dentist'&&['appointments','sessions','labs'].includes(args.dataset)){if(!actor.doctorId)throw new Error('Dentist profile is not linked to this account');q.doctorId=actor.doctorId}
   if(args.from||args.to){q[dateField]={};if(dateField==='createdAt'){
     if(args.from)q[dateField].$gte=localInstant(args.from,'00:00',timezone);
     if(args.to)q[dateField].$lte=new Date(localInstant(args.to,'23:59:59',timezone).getTime()+999);

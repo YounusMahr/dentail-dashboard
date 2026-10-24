@@ -37,10 +37,17 @@ try{
  async function req(path,{cookie,body,method,originHeader=origin}={}){return fetch(origin+path,{method:method||(body?'POST':'GET'),headers:{'Content-Type':'application/json',Origin:originHeader,...(cookie?{Cookie:cookie}:{})},...(body?{body:JSON.stringify(body)}:{})})}
  async function login(email){const r=await req('/api/auth/login',{body:{email,password}});assert.equal(r.status,200);return r.headers.get('set-cookie').split(';')[0]}
  const admin=await login('ai@qa.invalid'),other=await login('other@qa.invalid'),reception=await login('reception@qa.invalid');
- test((await req('/api/ai')).status===403,'Anonymous API blocked');test((await req('/api/ai',{cookie:reception})).status===403,'Non-admin API blocked');
+ test((await req('/api/ai')).status===403,'Anonymous API blocked');test((await req('/api/ai',{cookie:reception})).status===200,'Reception staff can open AI Assistant');
  test((await req('/api/ai',{cookie:admin,body:{question:'Hello'},originHeader:'https://evil.invalid'})).status===403,'Cross-origin writes blocked');
  test((await req('/api/ai',{cookie:admin,body:{question:'x'.repeat(2001)}})).status===400,'Input limit');
  const chat=await database.collection('aiChats').insertOne({clinicId,userId:String((await database.collection('users').findOne({email:'ai@qa.invalid'}))._id),title:'Private QA',messages:[]});
+ const aiActor=await database.collection('users').findOne({email:'ai@qa.invalid'}),actionId=new ObjectId();
+ await database.collection('aiActions').insertOne({_id:actionId,clinicId,userId:String(aiActor._id),chatId:String(chat.insertedId),type:'create_patient',payload:{name:'AI Action Patient',phone:'03009990000',email:''},summary:'Create patient: AI Action Patient',status:'pending',createdAt:new Date(),expiresAt:new Date(Date.now()+900000)});
+ test((await req('/api/ai/actions',{cookie:other,body:{id:String(actionId)}})).status===409,'Other clinic cannot confirm AI action');
+ test((await req('/api/ai/actions',{cookie:reception,body:{id:String(actionId)}})).status===409,'Other staff member cannot confirm private AI action');
+ test((await req('/api/ai/actions',{cookie:admin,body:{id:String(actionId)}})).status===200,'Admin confirmation creates patient');
+ test(!!await database.collection('patients').findOne({clinicId,phone:'03009990000'}),'Confirmed AI action persisted');
+ test((await req('/api/ai/actions',{cookie:admin,body:{id:String(actionId)}})).status===409,'AI action cannot be replayed');
  test((await req('/api/ai?id='+chat.insertedId,{cookie:other})).status===404,'Chat tenant isolation');
  test((await req('/api/ai',{cookie:other,body:{id:String(chat.insertedId),question:'Read history'}})).status===404,'Cross-tenant continuation blocked');
  test((await req('/dashboard/ai',{cookie:admin})).status===200,'Assistant UI route renders');

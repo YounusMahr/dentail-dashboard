@@ -1,0 +1,7 @@
+export const actionTool = { type: 'function', function: { name: 'prepare_clinic_action', description: 'Prepare ONE clinic administrative action for human confirmation. This tool never changes records. Use when the administrator explicitly asks to create a patient, book an appointment, add a service, create an invoice, or receive a payment. Ask for missing information. Never invent names, amounts, dates, consent, or payment status.', parameters: { type: 'object', additionalProperties: false, properties: {
+  action: { type: 'string', enum: ['create_patient', 'book_appointment', 'create_service', 'create_invoice', 'receive_payment'] },
+  patient_name: { type: 'string' }, phone: { type: 'string' }, email: { type: 'string' }, doctor_name: { type: 'string' }, service_name: { type: 'string' },
+  date: { type: 'string', description: 'Appointment date YYYY-MM-DD' }, time: { type: 'string', description: 'Appointment time HH:mm in clinic timezone' }, notes: { type: 'string' },
+  fee_type: { type: 'string', enum: ['consultation', 'checkup', 'treatment'] }, description: { type: 'string' }, amount: { type: 'number' }, invoice_number: { type: 'string' }, payment_method: { type: 'string', enum: ['cash', 'card', 'bank_transfer', 'easypaisa_jazzcash'] },
+  duration_minutes: { type: 'integer' }, category: { type: 'string' }, includes_checkup: { type: 'boolean' },
+}, required: ['action'] } } };
