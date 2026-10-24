@@ -6,6 +6,7 @@ import { fail, id, ok } from '@/lib/http';
 import { modules } from '@/lib/modules';
 import { cleanRecord } from '@/lib/records';
 import { writeBlock } from '@/lib/clinic-access';
+import { patientDeletionStatus } from '@/lib/patient-deletion-check';
 
 async function context(request, params, requireOrigin=true) {
   const { module, recordId } = await params, user = await currentUser();
@@ -89,7 +90,31 @@ export async function DELETE(request, { params }) {
   if (['invoices', 'treatments'].includes(ctx.module)) return fail('Clinical and financial records cannot be deleted');
   if (ctx.module === 'staff' && String(ctx.existing._id) === String(ctx.user._id)) return fail('Cannot delete your own account');
   const database = await db();
-  if (ctx.module === 'patients') for (const collection of ['appointments','treatments','invoices','payments','follow-ups','patientDocuments','treatmentPlans','careSessions','prescriptions','labCases','waitingList','portalAccess']) if (await database.collection(collection).findOne({ clinicId: ctx.user.clinicId, patientId: String(ctx.existing._id) })) return fail('Patient has linked records and cannot be deleted');
+  if (ctx.module === 'patients') {
+    const patientId = String(ctx.existing._id), clinicId = ctx.user.clinicId, session = database.client.startSession();
+    let status;
+    try {
+      await session.withTransaction(async () => {
+        status = await patientDeletionStatus(database, clinicId, patientId, session);
+        if (!status.canDelete) return;
+        const query = { clinicId, patientId };
+        if (status.removableAppointmentIds.length) {
+          const appointmentIds = status.removableAppointmentIds;
+          await database.collection('appointments').deleteMany({ ...query, _id: { $in: appointmentIds.map(value => new ObjectId(value)) }, deletedAt: { $exists: true } }, { session });
+          await database.collection('invoices').deleteMany({ ...query, appointmentId: { $in: appointmentIds }, status: 'cancelled', paidAmount: 0 }, { session });
+          await database.collection('prescriptions').deleteMany({ ...query, appointmentId: { $in: appointmentIds }, status: 'draft' }, { session });
+          await database.collection('visitSessions').deleteMany({ ...query, appointmentId: { $in: appointmentIds }, status: 'cancelled' }, { session });
+        }
+        await database.collection('notificationOutbox').deleteMany(query, { session });
+        await database.collection('emailOutbox').deleteMany(query, { session });
+        await ctx.collection.deleteOne(ctx.filter, { session });
+        await database.collection('auditLogs').insertOne({ clinicId, module: 'patients', recordId: patientId, actorId: String(ctx.user._id), action: 'delete', createdAt: new Date() }, { session });
+      });
+    } finally { await session.endSession(); }
+    if (status.reason === 'appointments') return fail('Remove this patient’s appointments before deleting the patient file.', 409);
+    if (!status.canDelete) return fail('This patient has clinical, billing or appointment history that must be retained.', 409);
+    return ok({ success: true });
+  }
   if(ctx.module==='doctors'&&ctx.user.role!=='clinic_admin')return fail('Only administrators can deactivate doctors',403);
   if (ctx.module === 'doctors') { await saveDoctor({active:false}, {}, ctx.user, ctx.existing); return ok({success:true}); }
   if (ctx.module === 'doctors') for (const collection of ['appointments','treatments','treatmentPlans','prescriptions','careSessions','waitingList']) if (await database.collection(collection).findOne({ clinicId: ctx.user.clinicId, doctorId: String(ctx.existing._id) })) return fail('Doctor has linked records and cannot be deleted');
