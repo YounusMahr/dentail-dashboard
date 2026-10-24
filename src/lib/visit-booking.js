@@ -25,6 +25,10 @@ export async function bookVisit(input, user, {publicBooking=false}={}) {
         if(existing){
           if(!publicBooking)throw new Error('This phone number already has a patient file. Choose Existing patient file.');
           patientId=String(existing._id);
+          const consentUpdate={};
+          if(details.whatsappConsent===true)consentUpdate.whatsappConsent=true;
+          if(details.emailConsent===true&&details.email&&String(existing.email||'').toLowerCase()===String(details.email).toLowerCase())consentUpdate.emailConsent=true;
+          if(Object.keys(consentUpdate).length)await database.collection('patients').updateOne({_id:existing._id,clinicId:user.clinicId},{$set:consentUpdate},{session});
         }else{
           const patient=await cleanRecord('patients',{name:details.name,phone,email:details.email||'',age:details.age??'',whatsappConsent:details.whatsappConsent===true,emailConsent:details.emailConsent===true,marketingConsent:details.marketingConsent===true,preferredLanguage:details.preferredLanguage==='ur'?'ur':'en'},user,null,{session,skipIndexes:true});
           const id=new ObjectId();
@@ -37,7 +41,7 @@ export async function bookVisit(input, user, {publicBooking=false}={}) {
       }
       const appointment=await cleanRecord('appointments',{...input,patientId},user,null,{session,skipIndexes:true});
       const appointmentId=new ObjectId();
-      await database.collection('appointments').insertOne({_id:appointmentId,...appointment,clinicId:user.clinicId,createdAt:now,updatedAt:now},{session});
+      await database.collection('appointments').insertOne({_id:appointmentId,...appointment,clinicId:user.clinicId,bookingSource:publicBooking?'website':'dashboard',createdAt:now,updatedAt:now},{session});
       const service=appointment.serviceId?await database.collection('services').findOne({_id:new ObjectId(appointment.serviceId),clinicId:user.clinicId},{session}):null;
       if(appointment.serviceId&&(!service||service.active===false))throw new Error('Choose an active service');
       const checkupFee=Number(clinic.newPatientCheckupFee??500);

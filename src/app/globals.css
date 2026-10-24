@@ -331,6 +331,9 @@ button.patient-inline-action{padding:7px 11px;border:1px solid #d2eadb;border-ra
 .table-wrap:has(.patient-directory-table){overflow-x:visible}
 .patient-directory-table{table-layout:fixed;min-width:0}
 .patient-directory-table th:first-child{width:28%}
+.record-identity{display:flex;align-items:center;gap:10px;min-width:0}
+.record-identity .avatar,.record-identity .patient-avatar{width:34px;height:34px;flex:none;border-radius:50%}
+.record-identity strong{min-width:0;overflow-wrap:anywhere}
 .patient-directory-table th:nth-child(2){width:12%}
 .patient-directory-table th:nth-child(3){width:26%}
 .patient-directory-table td,.patient-directory-table th{padding:12px 14px;overflow-wrap:anywhere}

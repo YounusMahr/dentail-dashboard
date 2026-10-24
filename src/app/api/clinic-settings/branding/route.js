@@ -10,7 +10,7 @@ export async function POST(request){
  const user=await currentUser();if(!sameOrigin(request)||user?.role!=='clinic_admin'||!user.clinicId)return fail('Unauthorized',403);
  const block=await writeBlock(user);if(block)return fail(block,403);
  if(Number(request.headers.get('content-length'))>2200000)return fail('Maximum image size is 2 MB',413);
- try{const form=await request.formData(),kind=form.get('kind');if(!['logo','favicon'].includes(kind))return fail('Invalid image type');
+ try{const form=await request.formData(),kind=form.get('kind');if(!['logo','favicon','paymentQr'].includes(kind))return fail('Invalid image type');
  const database=await db(),q={_id:new ObjectId(user.clinicId)};
  if(form.get('remove')==='true'){await database.collection('clinics').updateOne(q,{$unset:{[kind+'Data']:'',[kind+'Version']:''},$set:{updatedAt:new Date()}});return ok({url:null})}
  const file=form.get('file');if(!file||typeof file.arrayBuffer!=='function'||file.size>2*1024*1024||!file.size)return fail('Choose a PNG, JPEG or WebP image up to 2 MB');

@@ -1,8 +1,9 @@
 import { ObjectId } from 'mongodb';
 import { db } from './db';
 import { today } from './care-validation.mjs';
-import { cleanPhone, getLiveConnection, sendEvolutionText, getEvolutionConfig } from './evolution';
+import { cleanPhone, getLiveConnection, sendEvolutionText, sendEvolutionMedia, getEvolutionConfig } from './evolution';
 import {queueEmail,dispatchEmailOutbox} from './email-notifications';
+import {buildNotificationPdf} from './notification-pdf';
 import {localInstant} from './clinic-time.mjs';
 import {appointmentReminderWindows} from './reminder-windows.mjs';
 
@@ -18,28 +19,28 @@ export const messageTypes = [
 
 export const defaultTemplates = {
   appointment_confirmation: {
-    en: 'Hello {{patient}}, your appointment at {{clinic}} is confirmed: {{details}}. Please contact us for changes.',
-    ur: 'السلام علیکم {{patient}}، {{clinic}} میں آپ کی اپائنٹمنٹ کی تصدیق ہو گئی ہے: {{details}}۔ تبدیلی کے لیے کلینک سے رابطہ کریں۔'
+    en: '*Appointment Confirmation*\nHello {{patient}}, your appointment is booked at {{clinic}}.\n\n{{details}}\n\nPlease contact the clinic if you need to make a change.',
+    ur: '*اپائنٹمنٹ کی تصدیق*\nالسلام علیکم {{patient}}، {{clinic}} میں آپ کی اپائنٹمنٹ بک ہو گئی ہے۔\n\n{{details}}\n\nتبدیلی کے لیے کلینک سے رابطہ کریں۔'
   },
   appointment_reminder: {
-    en: 'Hello {{patient}}, a reminder from {{clinic}} about your appointment: {{details}}.',
-    ur: 'السلام علیکم {{patient}}، {{clinic}} کی طرف سے اپائنٹمنٹ کی یاد دہانی: {{details}}۔'
+    en: '*Appointment Reminder*\nHello {{patient}}, your appointment is booked at {{clinic}}.\n\n{{details}}\n\nWe look forward to seeing you.',
+    ur: '*اپائنٹمنٹ کی یاد دہانی*\nالسلام علیکم {{patient}}، {{clinic}} میں آپ کی اپائنٹمنٹ بک ہے۔\n\n{{details}}\n\nہم آپ کے منتظر ہیں۔'
   },
   session_reminder: {
-    en: 'Hello {{patient}}, your next treatment session at {{clinic}} is due: {{details}}. Please contact us to confirm.',
-    ur: 'السلام علیکم {{patient}}، {{clinic}} میں آپ کا اگلا سیشن: {{details}}۔ تصدیق کے لیے رابطہ کریں۔'
+    en: '*Treatment Session Reminder*\nHello {{patient}}, your next visit at {{clinic}} is approaching.\n\n{{details}}\n\nPlease contact us if your plans change.',
+    ur: '*علاج کے سیشن کی یاد دہانی*\nالسلام علیکم {{patient}}، {{clinic}} میں آپ کا اگلا سیشن قریب ہے۔\n\n{{details}}\n\nتبدیلی کے لیے رابطہ کریں۔'
   },
   follow_up: {
-    en: 'Hello {{patient}}, {{clinic}} would like to arrange your follow-up: {{details}}. Please contact the clinic.',
-    ur: 'السلام علیکم {{patient}}، {{clinic}} کی طرف سے فالو اپ کی یاد دہانی: {{details}}۔ کلینک سے رابطہ کریں۔'
+    en: '*Follow-up Reminder*\nHello {{patient}}, {{clinic}} would like to check on your recovery.\n\n{{details}}\n\nPlease contact the clinic to arrange your visit.',
+    ur: '*فالو اپ کی یاد دہانی*\nالسلام علیکم {{patient}}، {{clinic}} آپ کی صحت کے بارے میں جاننا چاہتا ہے۔\n\n{{details}}\n\nاپنے اگلے معائنے کے لیے رابطہ کریں۔'
   },
   payment_receipt: {
-    en: 'Hello {{patient}}, {{clinic}} has recorded your payment: {{details}}. Thank you.',
-    ur: 'السلام علیکم {{patient}}، {{clinic}} میں آپ کی ادائیگی درج ہو گئی ہے: {{details}}۔ شکریہ۔'
+    en: '*Payment Receipt*\nHello {{patient}}, {{clinic}} has recorded your payment. Your PDF receipt is attached.\n\n{{details}}\n\nThank you.',
+    ur: '*ادائیگی کی رسید*\nالسلام علیکم {{patient}}، {{clinic}} میں آپ کی ادائیگی درج ہو گئی ہے۔ PDF رسید ساتھ موجود ہے۔\n\n{{details}}\n\nشکریہ۔'
   },
   prescription_ready: {
-    en: 'Hello {{patient}}, your prescription from {{clinic}} is ready: {{details}}. Please contact the clinic for a private copy.',
-    ur: 'السلام علیکم {{patient}}، {{clinic}} سے آپ کا نسخہ تیار ہے: {{details}}۔ ذاتی کاپی کے لیے کلینک سے رابطہ کریں۔'
+    en: '*Your Prescription*\nHello {{patient}}, your prescription from {{clinic}} is ready. Your PDF copy is attached.\n\n{{details}}',
+    ur: '*آپ کا نسخہ*\nالسلام علیکم {{patient}}، {{clinic}} سے آپ کا نسخہ تیار ہے۔ PDF نسخہ ساتھ موجود ہے۔\n\n{{details}}'
   },
   waitlist_offer: {
     en: 'Hello {{patient}}, a slot is available at {{clinic}}: {{details}}. Open your patient portal to accept; the slot is subject to availability.',
@@ -47,10 +48,50 @@ export const defaultTemplates = {
   }
 };
 
+const oldDefaults = {
+  appointment_confirmation: ['Hello {{patient}}, your appointment at {{clinic}} is confirmed: {{details}}. Please contact us for changes.', 'السلام علیکم {{patient}}، {{clinic}} میں آپ کی اپائنٹمنٹ کی تصدیق ہو گئی ہے: {{details}}۔ تبدیلی کے لیے کلینک سے رابطہ کریں۔'],
+  appointment_reminder: ['Hello {{patient}}, a reminder from {{clinic}} about your appointment: {{details}}.', 'السلام علیکم {{patient}}، {{clinic}} کی طرف سے اپائنٹمنٹ کی یاد دہانی: {{details}}۔'],
+  session_reminder: ['Hello {{patient}}, your next treatment session at {{clinic}} is due: {{details}}. Please contact us to confirm.', 'السلام علیکم {{patient}}، {{clinic}} میں آپ کا اگلا سیشن: {{details}}۔ تصدیق کے لیے رابطہ کریں۔'],
+  follow_up: ['Hello {{patient}}, {{clinic}} would like to arrange your follow-up: {{details}}. Please contact the clinic.', 'السلام علیکم {{patient}}، {{clinic}} کی طرف سے فالو اپ کی یاد دہانی: {{details}}۔ کلینک سے رابطہ کریں۔'],
+  payment_receipt: ['Hello {{patient}}, {{clinic}} has recorded your payment: {{details}}. Thank you.', 'السلام علیکم {{patient}}، {{clinic}} میں آپ کی ادائیگی درج ہو گئی ہے: {{details}}۔ شکریہ۔'],
+  prescription_ready: ['Hello {{patient}}, your prescription from {{clinic}} is ready: {{details}}. Please contact the clinic for a private copy.', 'السلام علیکم {{patient}}، {{clinic}} سے آپ کا نسخہ تیار ہے: {{details}}۔ ذاتی کاپی کے لیے کلینک سے رابطہ کریں۔']
+};
+function effectiveTemplates(stored = {}) {
+  return Object.fromEntries(messageTypes.map(type => [type, Object.fromEntries(['en', 'ur'].map((lang, index) => {
+    const saved = stored?.[type]?.[lang];
+    return [lang, saved && saved !== oldDefaults[type]?.[index] ? saved : defaultTemplates[type][lang]];
+  }))]));
+}
+
 export const normalizePhone = value => cleanPhone(value);
 
 export function renderMessage(template, { patient, clinic, details }) {
   return template.replace(/\{\{(patient|clinic|details)\}\}/g, (_, key) => ({ patient, clinic, details })[key] || '');
+}
+
+export function formattedDetails(item, clinic) {
+  const values = item.values || [];
+  const dateText = value => /^\d{4}-\d{2}-\d{2}$/.test(value || '') ? new Date(`${value}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : value || '';
+  const timeText = value => /^\d{2}:\d{2}$/.test(value || '') ? new Date(`2000-01-01T${value}:00Z`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }) : value || '';
+  if (['appointment_confirmation', 'appointment_reminder'].includes(item.type)) return [
+    item.sourceId ? `*Appointment No: ${String(item.sourceId).slice(-8).toUpperCase()}*` : '',
+    `*Time: ${timeText(values[1])}*`,
+    `*Date: ${dateText(values[0])}*`,
+    values[2] ? `*Reminder: ${values[2]}*` : ''
+  ].filter(Boolean).join('\n');
+  if (item.type === 'session_reminder') return [`*Date: ${dateText(values[0])}*`, values[1]].filter(Boolean).join('\n');
+  if (item.type === 'follow_up') return [`*Date: ${dateText(values[0])}*`, values[1]].filter(Boolean).join('\n');
+  if (item.type === 'payment_receipt') return [
+    `*${values[0] || 'Receipt'}*`,
+    values[1] ? `*Amount received: ${values[1]}*` : '',
+    values[2] ? `*${values[2]}*` : '',
+    clinic.bankName ? `Bank / wallet: ${clinic.bankName}` : '',
+    clinic.accountTitle ? `Account title: ${clinic.accountTitle}` : '',
+    clinic.accountNumber ? `Account number: ${clinic.accountNumber}` : '',
+    clinic.iban ? `IBAN: ${clinic.iban}` : '',
+    clinic.paymentQrData ? 'Scan-to-pay QR is printed on the attached receipt.' : ''
+  ].filter(Boolean).join('\n');
+  return values.join('\n');
 }
 
 export async function publicMessagingSettings(clinicId) {
@@ -62,7 +103,7 @@ export async function publicMessagingSettings(clinicId) {
   const live = await getLiveConnection(instanceName);
 
   return {
-    templates: { ...defaultTemplates, ...stored?.templates },
+    templates: effectiveTemplates(stored?.templates),
     instanceName,
     providerConnected: live.connected,
     connectionState: live.state,
@@ -184,20 +225,23 @@ export async function dispatchSingleNotification(outboxId, clinicId) {
   }
 
   const lang = patient.preferredLanguage === 'ur' ? 'ur' : 'en';
-  const templates = { ...defaultTemplates, ...storedSettings?.templates };
+  const templates = effectiveTemplates(storedSettings?.templates);
   const template = templates[item.type]?.[lang] || defaultTemplates[item.type]?.[lang] || defaultTemplates[item.type]?.en;
 
   const messageText = renderMessage(template, {
     patient: patient.name || 'Valued Patient',
     clinic: clinic?.name || 'Dental Clinic',
-    details: (item.values || []).join(' · ')
+    details: formattedDetails(item, clinic || {})
   });
 
   const { defaultInstance } = getEvolutionConfig();
   const instanceName = storedSettings?.instanceName || defaultInstance;
 
   try {
-    const sendRes = await sendEvolutionText(phone, messageText, instanceName);
+    const attachment = ['payment_receipt', 'prescription_ready'].includes(item.type) ? await buildNotificationPdf(database, item, clinic) : null;
+    const sendRes = attachment
+      ? await sendEvolutionMedia(phone, { media: attachment.buffer.toString('base64'), mediaType: 'document', mimeType: 'application/pdf', caption: messageText, fileName: attachment.fileName }, instanceName)
+      : await sendEvolutionText(phone, messageText, instanceName);
     await database.collection('notificationOutbox').updateOne(
       { _id: item._id },
       {

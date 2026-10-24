@@ -227,16 +227,18 @@ export async function sendEvolutionText(number, text, instanceName) {
   };
 }
 
-export async function sendEvolutionMedia(number, { media, mediaType = 'image', caption = '', fileName = 'document.pdf' }, instanceName) {
+export async function sendEvolutionMedia(number, { media, mediaType = 'document', mimeType = 'application/pdf', caption = '', fileName = 'document.pdf' }, instanceName) {
   const { defaultInstance } = getEvolutionConfig();
   const target = instanceName || defaultInstance;
   const phone = cleanPhone(number);
+  if (!phone || phone.length < 9) throw new Error('Invalid recipient phone');
 
   const res = await evolutionFetch(`/message/sendMedia/${encodeURIComponent(target)}`, {
     method: 'POST',
     body: JSON.stringify({
       number: phone,
-      mediaType,
+      mediatype: mediaType,
+      mimetype: mimeType,
       media,
       caption,
       fileName
@@ -244,8 +246,9 @@ export async function sendEvolutionMedia(number, { media, mediaType = 'image', c
   });
 
   if (!res.ok) {
-    throw new Error(res.data?.response?.message || res.data?.message || 'Failed to send media');
+    const message = res.data?.response?.message || res.data?.message || 'Failed to send media';
+    throw new Error(typeof message === 'object' ? JSON.stringify(message) : String(message));
   }
 
-  return { success: true, data: res.data };
+  return { success: true, messageId: res.data?.key?.id || res.data?.messageId || null, data: res.data };
 }

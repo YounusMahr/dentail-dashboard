@@ -78,7 +78,7 @@ export async function GET(request, { params }) {
     const doctorIds=[...new Set(records.map(record=>record.doctorId).filter(value=>/^[a-f\d]{24}$/i.test(String(value))))].map(value=>new ObjectId(value));
     const serviceIds=[...new Set(records.map(record=>record.serviceId).filter(value=>/^[a-f\d]{24}$/i.test(String(value))))].map(value=>new ObjectId(value));
     const [patients,doctors,services]=await Promise.all([
-      patientIds.length?database.collection('patients').find({clinicId:user.clinicId,_id:{$in:patientIds}},{projection:{name:1,phone:1}}).toArray():[],
+      patientIds.length?database.collection('patients').find({clinicId:user.clinicId,_id:{$in:patientIds}},{projection:{name:1,phone:1,photoDataUrl:1}}).toArray():[],
       database.collection('doctors').find({clinicId:user.clinicId,$or:[{active:{$ne:false}},...(doctorIds.length?[{_id:{$in:doctorIds}}]:[])]},{projection:{name:1}}).sort({name:1}).toArray(),
       database.collection('services').find({clinicId:user.clinicId,$or:[{active:{$ne:false}},...(serviceIds.length?[{_id:{$in:serviceIds}}]:[])]},{projection:{name:1}}).sort({name:1}).toArray(),
     ]);

@@ -1,4 +1,3 @@
-import { after } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { currentUser, sameOrigin } from '@/lib/auth';
 import { careIndexes } from '@/lib/care';
@@ -33,22 +32,21 @@ export async function POST(request) {
     : [`Prescription ${recordId.slice(-6).toUpperCase()}`, `Revision ${record.revision || 1}`];
   const details = kind === 'receipt'
     ? [`Receipt: ${invoice.invoiceNumber || recordId}`, `Amount received: Rs ${Number(record.amount).toLocaleString('en-PK')}`, `Remaining balance: Rs ${Number(invoice.balanceAmount || 0).toLocaleString('en-PK')}`]
-    : ['Your dentist has prepared a prescription. Contact the clinic for a private patient access link.'];
+    : ['Your dentist has prepared your prescription. The PDF copy is attached.'];
 
-  let outboxId = await enqueue({ clinicId: user.clinicId, patientId: record.patientId, type, eventKey, values, sourceId: recordId });
-  let emailQueued = await queueEmail({ clinicId: user.clinicId, patientId: record.patientId, type: kind === 'prescription' ? 'prescription_issued' : type, eventKey, details, sourceId: recordId });
-  if (!outboxId) {
-    const previous = await database.collection('notificationOutbox').findOne({ clinicId: user.clinicId, eventKey, status: 'failed' });
-    if (previous) {
-      const retried = await database.collection('notificationOutbox').updateOne({ _id: previous._id, status: 'failed' }, { $set: { status: 'pending_provider', updatedAt: new Date() }, $unset: { error: '' } });
-      if (retried.modifiedCount) outboxId = previous._id;
-    }
+  await Promise.all([
+    enqueue({ clinicId: user.clinicId, patientId: record.patientId, type, eventKey, values, sourceId: recordId }),
+    queueEmail({ clinicId: user.clinicId, patientId: record.patientId, type: kind === 'prescription' ? 'prescription_issued' : type, eventKey, details, sourceId: recordId })
+  ]);
+  const [whatsDoc, emailDoc] = await Promise.all(['notificationOutbox', 'emailOutbox'].map(collection => database.collection(collection).findOne({ clinicId: user.clinicId, eventKey })));
+  for (const [collection, doc] of [['notificationOutbox', whatsDoc], ['emailOutbox', emailDoc]]) {
+    if (doc?.status === 'failed') await database.collection(collection).updateOne({ _id: doc._id, status: 'failed' }, { $set: { status: 'pending_provider', updatedAt: new Date() }, $unset: { error: '' } });
   }
-  if (!emailQueued) {
-    const retried = await database.collection('emailOutbox').updateOne({ clinicId: user.clinicId, eventKey, status: 'failed' }, { $set: { status: 'pending_provider', updatedAt: new Date() }, $unset: { error: '' } });
-    emailQueued = retried.modifiedCount > 0;
-  }
-  if (outboxId) after(async () => { try { await dispatchSingleNotification(outboxId, user.clinicId); } catch (error) { console.error('Print WhatsApp message remains pending:', error.message); } });
-  if (emailQueued) after(async () => { try { await dispatchEmailOutbox(user.clinicId); } catch (error) { console.error('Print email remains pending:', error.message); } });
-  return ok({ whatsappQueued: !!outboxId, emailQueued });
+  const delivery = await Promise.allSettled([
+    whatsDoc && whatsDoc.status !== 'sent' ? dispatchSingleNotification(whatsDoc._id, user.clinicId) : Promise.resolve(),
+    emailDoc && emailDoc.status !== 'sent' ? dispatchEmailOutbox(user.clinicId, emailDoc._id) : Promise.resolve()
+  ]);
+  const [whatsappResult, emailResult] = await Promise.all(['notificationOutbox', 'emailOutbox'].map(collection => database.collection(collection).findOne({ clinicId: user.clinicId, eventKey }, { projection: { status: 1, error: 1 } })));
+  const summarize = (doc, outcome) => doc ? { status: doc.status, ...(doc.error ? { error: doc.error } : {}), ...(outcome.status === 'rejected' && !doc.error ? { error: outcome.reason?.message || 'Delivery failed' } : {}) } : { status: 'off' };
+  return ok({ whatsapp: summarize(whatsappResult, delivery[0]), email: summarize(emailResult, delivery[1]) });
 }
