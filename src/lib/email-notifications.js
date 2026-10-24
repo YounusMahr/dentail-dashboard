@@ -1,3 +1,4 @@
+import nodemailer from 'nodemailer';
 import {ObjectId} from 'mongodb';
 import {db} from './db';
 import {buildNotificationPdf} from './notification-pdf';
@@ -15,15 +16,14 @@ export async function queueEmail({clinicId,patientId,type,eventKey,details=[],so
 }
 
 export async function dispatchEmailOutbox(clinicId, outboxId){
- if(!process.env.RESEND_API_KEY||!process.env.EMAIL_FROM)return {processed:0,pendingProvider:true};
  const database=await db(),items=await database.collection('emailOutbox').find({...(clinicId?{clinicId}:{}),...(outboxId?{_id:new ObjectId(outboxId)}:{}),status:'pending_provider'}).sort({createdAt:1}).limit(outboxId?1:20).toArray();
  let sent=0,failed=0;
  for(const item of items){
-   if((item.type==='payment_receipt'&&!item.eventKey?.startsWith('print-receipt:'))||(item.type==='prescription_issued'&&!item.eventKey?.startsWith('print-prescription:'))){
+   if((item.type==='payment_receipt'&&!item.eventKey?.startsWith('print-receipt:')&&!item.eventKey?.startsWith('payment:'))||(item.type==='prescription_issued'&&!item.eventKey?.startsWith('print-prescription:')&&!item.eventKey?.startsWith('prescription:'))){
      await database.collection('emailOutbox').updateOne({_id:item._id},{$set:{status:'cancelled',cancelReason:'Print required',updatedAt:new Date()}});continue;
    }
    const [patient,clinic]=await Promise.all([database.collection('patients').findOne({_id:new ObjectId(item.patientId),clinicId:item.clinicId}),database.collection('clinics').findOne({_id:new ObjectId(item.clinicId)})]);
-   if(!patient?.emailConsent||!emailPattern.test(patient.email||'')){await database.collection('emailOutbox').updateOne({_id:item._id},{$set:{status:'cancelled',updatedAt:new Date()}});continue}
+   if(!patient?.emailConsent||!emailPattern.test(patient.email||'')){await database.collection('emailOutbox').updateOne({_id:item._id},{$set:{status:'cancelled',cancelReason:'No email consent or invalid address',updatedAt:new Date()}});continue}
    if(['appointment_confirmation','appointment_reminder'].includes(item.type)&&ObjectId.isValid(item.sourceId||'')){
      const appointment=await database.collection('appointments').findOne({_id:new ObjectId(item.sourceId),clinicId:item.clinicId});
      if(!appointment||appointment.deletedAt||['cancelled','no_show'].includes(appointment.status)||!item.eventKey.endsWith(`:${appointment.appointmentDate}:${appointment.startsAt}`)){
@@ -37,12 +37,42 @@ export async function dispatchEmailOutbox(clinicId, outboxId){
    const html=`<div style="font:16px Arial,sans-serif;color:#173b35;max-width:580px;margin:auto"><h1 style="font-size:24px;color:#13866b">${escape(clinicName)}</h1>${paragraphs.map(line=>`<p>${escape(line)}</p>`).join('')}<small>This is a clinic notification.</small></div>`;
    try{
      const attachment=['payment_receipt','prescription_issued'].includes(item.type)?await buildNotificationPdf(database,item,clinic):null;
-     const attachments=attachment?[{filename:attachment.fileName,content:attachment.buffer.toString('base64'),content_type:'application/pdf'}]:undefined;
-     const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,'Content-Type':'application/json','Idempotency-Key':`dental-${item._id}`},body:JSON.stringify({from:process.env.EMAIL_FROM,to:[patient.email],subject,html,attachments}),signal:AbortSignal.timeout(15000)});
-     const result=await response.json().catch(()=>({}));
-     if(!response.ok)throw new Error(result.message||`Email provider returned ${response.status}`);
-     await database.collection('emailOutbox').updateOne({_id:item._id,status:'pending_provider'},{$set:{status:'sent',sentAt:new Date(),providerMessageId:result.id||''}});sent++;
-   }catch(error){await database.collection('emailOutbox').updateOne({_id:item._id},{$set:{status:'failed',failedAt:new Date(),error:String(error.message).slice(0,250)}});failed++}
+     const hasSmtp=Boolean(clinic?.smtpHost&&clinic?.smtpUser&&clinic?.smtpPass);
+     if(hasSmtp){
+       const transporter=nodemailer.createTransport({
+         host:clinic.smtpHost,
+         port:Number(clinic.smtpPort)||587,
+         secure:clinic.smtpSecure===true||Number(clinic.smtpPort)===465,
+         auth:{user:clinic.smtpUser,pass:clinic.smtpPass},
+         connectionTimeout:10000,
+         greetingTimeout:10000,
+         socketTimeout:15000
+       });
+       const from=clinic.smtpFrom||`"${clinicName}" <${clinic.smtpUser}>`;
+       const mailResult=await transporter.sendMail({
+         from,
+         to:patient.email,
+         subject,
+         html,
+         attachments:attachment?[{filename:attachment.fileName,content:attachment.buffer,contentType:'application/pdf'}]:[]
+       });
+       await database.collection('emailOutbox').updateOne({_id:item._id,status:'pending_provider'},{$set:{status:'sent',sentAt:new Date(),provider:'smtp',providerMessageId:mailResult.messageId||''}});
+       sent++;
+     }else if(process.env.RESEND_API_KEY&&process.env.EMAIL_FROM){
+       const attachments=attachment?[{filename:attachment.fileName,content:attachment.buffer.toString('base64'),content_type:'application/pdf'}]:undefined;
+       const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,'Content-Type':'application/json','Idempotency-Key':`dental-${item._id}`},body:JSON.stringify({from:process.env.EMAIL_FROM,to:[patient.email],subject,html,attachments}),signal:AbortSignal.timeout(15000)});
+       const result=await response.json().catch(()=>({}));
+       if(!response.ok)throw new Error(result.message||`Email provider returned ${response.status}`);
+       await database.collection('emailOutbox').updateOne({_id:item._id,status:'pending_provider'},{$set:{status:'sent',sentAt:new Date(),provider:'resend',providerMessageId:result.id||''}});
+       sent++;
+     }else{
+       await database.collection('emailOutbox').updateOne({_id:item._id},{$set:{status:'failed',failedAt:new Date(),error:'No email provider or clinic SMTP configured'}});
+       failed++;
+     }
+   }catch(error){
+     await database.collection('emailOutbox').updateOne({_id:item._id},{$set:{status:'failed',failedAt:new Date(),error:String(error.message).slice(0,250)}});
+     failed++;
+   }
  }
  return {processed:items.length,sent,failed};
 }

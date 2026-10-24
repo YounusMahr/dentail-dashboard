@@ -91,8 +91,8 @@ export async function buildNotificationPdf(database, item, clinic) {
     const buffer = await thermalReceiptPdf(payment, invoice, patient, clinic);
     return { buffer, fileName: `Receipt-${String(payment._id).slice(-10)}.pdf` };
   }
-  const prescription = await database.collection('prescriptions').findOne({ _id: recordId, clinicId, status: 'issued' });
-  if (!prescription) throw new Error('Issued prescription not found');
+  const prescription = await database.collection('prescriptions').findOne({ _id: recordId, clinicId });
+  if (!prescription) throw new Error('Prescription record not found');
   const [patient, doctor] = await Promise.all([
     database.collection('patients').findOne({ _id: new ObjectId(prescription.patientId), clinicId }),
     database.collection('doctors').findOne({ _id: new ObjectId(prescription.doctorId), clinicId })

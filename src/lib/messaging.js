@@ -188,8 +188,8 @@ export async function dispatchSingleNotification(outboxId, clinicId) {
 
   if (!item) throw new Error('Notification record not found');
   if (item.status === 'sent') return { skipped: true, reason: 'Already sent' };
-  if (item.type === 'payment_receipt' && !item.eventKey?.startsWith('print-receipt:')) {
-    await database.collection('notificationOutbox').updateOne({ _id: item._id }, { $set: { status: 'cancelled', cancelReason: 'Receipt sends only when staff prints', updatedAt: new Date() } });
+  if (item.type === 'payment_receipt' && !item.eventKey?.startsWith('print-receipt:') && !item.eventKey?.startsWith('payment:')) {
+    await database.collection('notificationOutbox').updateOne({ _id: item._id }, { $set: { status: 'cancelled', cancelReason: 'Print or payment required', updatedAt: new Date() } });
     return { cancelled: true, reason: 'Print required' };
   }
 
@@ -239,9 +239,17 @@ export async function dispatchSingleNotification(outboxId, clinicId) {
 
   try {
     const attachment = ['payment_receipt', 'prescription_ready'].includes(item.type) ? await buildNotificationPdf(database, item, clinic) : null;
-    const sendRes = attachment
-      ? await sendEvolutionMedia(phone, { media: attachment.buffer.toString('base64'), mediaType: 'document', mimeType: 'application/pdf', caption: messageText, fileName: attachment.fileName }, instanceName)
-      : await sendEvolutionText(phone, messageText, instanceName);
+    let sendRes;
+    if (attachment) {
+      try {
+        sendRes = await sendEvolutionMedia(phone, { media: attachment.buffer.toString('base64'), mediaType: 'document', mimeType: 'application/pdf', caption: messageText, fileName: attachment.fileName }, instanceName);
+      } catch (mediaErr) {
+        console.warn('sendEvolutionMedia failed, falling back to text:', mediaErr.message);
+        sendRes = await sendEvolutionText(phone, messageText, instanceName);
+      }
+    } else {
+      sendRes = await sendEvolutionText(phone, messageText, instanceName);
+    }
     await database.collection('notificationOutbox').updateOne(
       { _id: item._id },
       {

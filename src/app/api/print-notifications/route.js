@@ -20,7 +20,11 @@ export async function POST(request) {
   const database = await db();
   const record = await database.collection(kind === 'receipt' ? 'payments' : 'prescriptions').findOne({ _id: new ObjectId(recordId), clinicId: user.clinicId });
   if (!record) return fail('Document not found', 404);
-  if (kind === 'prescription' && (record.status !== 'issued' || user.role === 'dentist' && record.doctorId !== user.doctorId)) return fail('Issue the prescription before sending it', 409);
+  if (kind === 'prescription' && user.role === 'dentist' && record.doctorId !== user.doctorId) return fail('Unauthorized', 403);
+  if (kind === 'prescription' && record.status !== 'issued') {
+    await database.collection('prescriptions').updateOne({ _id: record._id, clinicId: user.clinicId }, { $set: { status: 'issued', issuedAt: new Date(), updatedAt: new Date() } });
+    record.status = 'issued';
+  }
   const invoice = kind === 'receipt' ? await database.collection('invoices').findOne({ _id: new ObjectId(record.invoiceId), clinicId: user.clinicId }) : null;
   if (kind === 'receipt' && !invoice) return fail('Invoice not found', 404);
 
@@ -35,12 +39,14 @@ export async function POST(request) {
     : ['Your dentist has prepared your prescription. The PDF copy is attached.'];
 
   await Promise.all([
-    enqueue({ clinicId: user.clinicId, patientId: record.patientId, type, eventKey, values, sourceId: recordId }),
+    enqueue({ clinicId: user.clinicId, patientId: record.patientId, type, eventKey, values, sourceCollection: kind === 'receipt' ? 'payments' : 'prescriptions', sourceId: recordId }),
     queueEmail({ clinicId: user.clinicId, patientId: record.patientId, type: kind === 'prescription' ? 'prescription_issued' : type, eventKey, details, sourceId: recordId })
   ]);
   const [whatsDoc, emailDoc] = await Promise.all(['notificationOutbox', 'emailOutbox'].map(collection => database.collection(collection).findOne({ clinicId: user.clinicId, eventKey })));
   for (const [collection, doc] of [['notificationOutbox', whatsDoc], ['emailOutbox', emailDoc]]) {
-    if (doc?.status === 'failed') await database.collection(collection).updateOne({ _id: doc._id, status: 'failed' }, { $set: { status: 'pending_provider', updatedAt: new Date() }, $unset: { error: '' } });
+    if (doc && (doc.status === 'failed' || doc.status === 'cancelled')) {
+      await database.collection(collection).updateOne({ _id: doc._id }, { $set: { status: 'pending_provider', updatedAt: new Date() }, $unset: { error: '', cancelReason: '' } });
+    }
   }
   const delivery = await Promise.allSettled([
     whatsDoc && whatsDoc.status !== 'sent' ? dispatchSingleNotification(whatsDoc._id, user.clinicId) : Promise.resolve(),

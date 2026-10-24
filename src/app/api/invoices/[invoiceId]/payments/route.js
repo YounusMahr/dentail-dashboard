@@ -5,6 +5,8 @@ import { fail, id, ok } from '@/lib/http';
 import { writeBlock } from '@/lib/clinic-access';
 import { careIndexes } from '@/lib/care';
 import { money } from '@/lib/care-validation.mjs';
+import { enqueue, dispatchSingleNotification } from '@/lib/messaging';
+import { queueEmail, dispatchEmailOutbox } from '@/lib/email-notifications';
 export async function GET(request,{params}){
  const user=await currentUser(),invoiceId=(await params).invoiceId;if(!user?.clinicId||!id(invoiceId))return fail('Unauthorized',401);
  const database=await db(),invoice=await database.collection('invoices').findOne({_id:new ObjectId(invoiceId),clinicId:user.clinicId});if(!invoice)return fail('Invoice not found',404);
@@ -30,5 +32,22 @@ export async function POST(request,{params}){
   paymentId=new ObjectId();await database.collection('payments').insertOne({_id:paymentId,clinicId:user.clinicId,invoiceId,patientId:invoice.patientId,sessionId,receivedByUserId:String(user._id),amount,paymentMethod:method,transactionReference:String(body.transactionReference||'').slice(0,100),...(idempotencyKey?{idempotencyKey}:{}),createdAt:new Date()},{session});
   await database.collection('auditLogs').insertOne({clinicId:user.clinicId,module:'payments',recordId:invoiceId,actorId:String(user._id),amount,sessionId,createdAt:new Date()},{session});
  })}catch(e){return fail(e.code===11000?'Payment already recorded; refresh before retrying':e.message,409)}finally{await session.endSession()}
+ if(!replayed&&paymentId&&invoice?.patientId){
+  const eventKey=`payment:${paymentId}`;
+  try{
+    await Promise.allSettled([
+      enqueue({clinicId:user.clinicId,patientId:invoice.patientId,type:'payment_receipt',eventKey,values:[`Receipt ${invoice.invoiceNumber||String(paymentId).slice(-8).toUpperCase()}`,`Rs ${Number(amount).toLocaleString('en-PK')}`,`Balance Rs ${Number(invoice.balanceAmount||0).toLocaleString('en-PK')}`],sourceCollection:'payments',sourceId:String(paymentId)}),
+      queueEmail({clinicId:user.clinicId,patientId:invoice.patientId,type:'payment_receipt',eventKey,details:[`Receipt: ${invoice.invoiceNumber||String(paymentId).slice(-8).toUpperCase()}`,`Amount received: Rs ${Number(amount).toLocaleString('en-PK')}`,`Remaining balance: Rs ${Number(invoice.balanceAmount||0).toLocaleString('en-PK')}`],sourceId:String(paymentId)})
+    ]);
+    const [whatsDoc,emailDoc]=await Promise.all([
+      database.collection('notificationOutbox').findOne({clinicId:user.clinicId,eventKey}),
+      database.collection('emailOutbox').findOne({clinicId:user.clinicId,eventKey})
+    ]);
+    Promise.allSettled([
+      whatsDoc&&whatsDoc.status!=='sent'?dispatchSingleNotification(whatsDoc._id,user.clinicId):Promise.resolve(),
+      emailDoc&&emailDoc.status!=='sent'?dispatchEmailOutbox(user.clinicId,emailDoc._id):Promise.resolve()
+    ]).catch(err=>console.error('Payment auto dispatch error:',err));
+  }catch(e){console.error('Failed to queue payment receipt notification:',e)}
+ }
  return ok({invoice,paymentId:String(paymentId),replayed});
 }
