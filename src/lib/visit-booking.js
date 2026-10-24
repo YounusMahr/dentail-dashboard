@@ -26,7 +26,7 @@ export async function bookVisit(input, user, {publicBooking=false}={}) {
           if(!publicBooking)throw new Error('This phone number already has a patient file. Choose Existing patient file.');
           patientId=String(existing._id);
         }else{
-          const patient=await cleanRecord('patients',{name:details.name,phone,email:details.email||'',whatsappConsent:details.whatsappConsent===true,emailConsent:details.emailConsent===true,marketingConsent:details.marketingConsent===true,preferredLanguage:details.preferredLanguage==='ur'?'ur':'en'},user,null,{session,skipIndexes:true});
+          const patient=await cleanRecord('patients',{name:details.name,phone,email:details.email||'',age:details.age??'',whatsappConsent:details.whatsappConsent===true,emailConsent:details.emailConsent===true,marketingConsent:details.marketingConsent===true,preferredLanguage:details.preferredLanguage==='ur'?'ur':'en'},user,null,{session,skipIndexes:true});
           const id=new ObjectId();
           await database.collection('patients').insertOne({_id:id,...patient,clinicId:user.clinicId,createdAt:now,updatedAt:now},{session});
           patientId=String(id);isNew=true;

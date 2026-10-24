@@ -9,7 +9,7 @@ import { chairDays } from './availability.mjs';
 import { pakistanMobile } from './pakistan-phone.mjs';
 
 const refCollections = { patientId: 'patients', doctorId: 'doctors', serviceId: 'services' };
-const numeric = new Set(['standardFee', 'durationMinutes', 'consultationFee', 'slotMinutes', 'quantity', 'unitPrice', 'discountAmount']);
+const numeric = new Set(['standardFee', 'durationMinutes', 'consultationFee', 'slotMinutes', 'quantity', 'unitPrice', 'discountAmount', 'age']);
 
 export async function cleanRecord(module, input, user, existing = null, options = {}) {
   const schema = modules[module];
@@ -20,10 +20,12 @@ export async function cleanRecord(module, input, user, existing = null, options 
   for (const [key, , type, required] of schema.fields) {
     if (!(key in input)) continue;
     let value = input[key];
+    if (key === 'age' && (value === null || String(value).trim() === '')) { record.age = null; continue; }
     if (type === 'checkbox') value = value === true;
     else if (numeric.has(key)) value = Number(value);
     else value = String(value ?? '').trim();
     if (numeric.has(key) && (!Number.isFinite(value) || value < 0 || ['durationMinutes','slotMinutes','quantity'].includes(key) && value < 1)) throw new Error(`Invalid ${key}`);
+    if (key === 'age' && (!Number.isInteger(value) || value > 120)) throw new Error('Age must be a whole number from 0 to 120');
     if (required && (value === '' || value === null)) throw new Error(`${key} is required`);
     if (type === 'email' && value && !/^\S+@\S+\.\S+$/.test(value)) throw new Error(`Invalid ${key}`);
     if (type.startsWith('select:') && value && !type.slice(7).split(',').includes(value)) throw new Error(`Invalid ${key}`);
@@ -99,7 +101,6 @@ export async function cleanRecord(module, input, user, existing = null, options 
     record.invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
   }
   if(module==='patients'&&record.phone)record.phone=pakistanMobile(record.phone);
-  if(module==='patients'&&record.dateOfBirth&&(Number.isNaN(Date.parse(record.dateOfBirth))||new Date(record.dateOfBirth).toISOString().slice(0,10)!==record.dateOfBirth||record.dateOfBirth>new Date().toLocaleDateString('en-CA',{timeZone:user.timezone||'Asia/Karachi'})))throw new Error('Date of birth must be a valid date in the past');
   if(module==='follow-ups'&&record.status==='contacted')record.lastContactedAt=new Date();
   if(module==='appointments'&&record.status==='cancelled')record.cancellationReason=String(input.cancellationReason||'Cancelled by staff').slice(0,255);
   if(['patients','doctors','staff'].includes(module)&&Object.hasOwn(input,'photoDataUrl'))record.photoDataUrl=await cleanPatientPhoto(input.photoDataUrl,{size:module==='doctors'?480:160});

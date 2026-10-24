@@ -10,6 +10,7 @@ import DoctorScheduleForm from './doctor-schedule-form';
 import DoctorRoster from './doctor-roster';
 import AppointmentForm from './appointment-form';
 import { modules } from '@/lib/modules';
+import { patientAge } from '@/lib/patient-age.mjs';
 import { Plus, Search, FolderHeart, SlidersHorizontal } from 'lucide-react';
 
 const todayDate=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Karachi'});
@@ -27,7 +28,7 @@ function getDefaultRecord(mod,user,options){
 }
 function Field({ field, record, options, user, module }) {
   const [key, label, type, required] = field;
-  let value = record[key];
+  let value = key === 'age' && module === 'patients' ? patientAge(record) : record[key];
   if (value === undefined || value === null) {
     if (type === 'date' && !key.toLowerCase().includes('birth')) value = todayDate();
     else if (type === 'checkbox') value = (key === 'active' || key === 'whatsappConsent');
@@ -41,9 +42,9 @@ function Field({ field, record, options, user, module }) {
     else if (key === 'status') value = module === 'follow-ups' ? 'pending' : (module === 'appointments' ? 'confirmed' : '');
     else value = '';
   }
-  return <div className="field"><label htmlFor={key}>{label}{required?' *':''}</label>{type === 'textarea' ? <textarea id={key} name={key} defaultValue={value} rows={2} required={required}/> : type === 'teeth' ? <ToothPicker id={key} name={key} value={value}/> : type.startsWith('select:') ? <select id={key} name={key} defaultValue={value} required={required}><option value="">Select</option>{type.slice(7).split(',').map(x=><option value={x} key={x}>{x.replaceAll('_',' ')}</option>)}</select> : ['patient','doctor','service'].includes(type) ? <select id={key} name={key} defaultValue={value} required={required}><option value="">Select</option>{(options[`${type}s`]||[]).map(x=><option value={x._id} key={x._id}>{x.name}</option>)}</select> : type === 'checkbox' ? <input id={key} name={key} type="checkbox" className="check" defaultChecked={Boolean(value)}/> : <input id={key} name={key} type={type} defaultValue={value} required={type==='password'&&record._id?false:required} min={type==='number'?'0':undefined} step={type==='number'?'any':undefined}/>}</div>;
+  return <div className="field"><label htmlFor={key}>{label}{required?' *':''}</label>{type === 'textarea' ? <textarea id={key} name={key} defaultValue={value} rows={2} required={required}/> : type === 'teeth' ? <ToothPicker id={key} name={key} value={value}/> : type.startsWith('select:') ? <select id={key} name={key} defaultValue={value} required={required}><option value="">Select</option>{type.slice(7).split(',').map(x=><option value={x} key={x}>{x.replaceAll('_',' ')}</option>)}</select> : ['patient','doctor','service'].includes(type) ? <select id={key} name={key} defaultValue={value} required={required}><option value="">Select</option>{(options[`${type}s`]||[]).map(x=><option value={x._id} key={x._id}>{x.name}</option>)}</select> : type === 'checkbox' ? <input id={key} name={key} type="checkbox" className="check" defaultChecked={Boolean(value)}/> : <input id={key} name={key} type={type} inputMode={key==='age'?'numeric':undefined} defaultValue={value} required={type==='password'&&record._id?false:required} min={type==='number'?'0':undefined} max={key==='age'?'120':undefined} step={key==='age'?'1':type==='number'?'any':undefined}/>}</div>;
 }
-function display(record,key,options){const collection={patientId:'patients',doctorId:'doctors',serviceId:'services'}[key],v=record[key];if(collection)return options[collection]?.find(x=>String(x._id)===v)?.name||v||'—';if(typeof v==='boolean')return v?'Yes':'No';if(typeof v==='number')return v.toLocaleString();return v||'—'}
+function display(record,key,options){const collection={patientId:'patients',doctorId:'doctors',serviceId:'services'}[key],v=key==='age'?patientAge(record):record[key];if(collection)return options[collection]?.find(x=>String(x._id)===v)?.name||v||'—';if(typeof v==='boolean')return v?'Yes':'No';if(typeof v==='number')return v.toLocaleString();return v||'—'}
 export default function ModulePage(){
   const {module}=useParams();
   return <ModuleContent key={module} module={module}/>;

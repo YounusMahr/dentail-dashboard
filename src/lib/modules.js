@@ -1,6 +1,6 @@
 export const modules = {
   patients: { title: 'Patients', roles: ['clinic_admin', 'receptionist', 'dentist'], fields: [
-    ['name', 'Name', 'text', true], ['phone', 'Phone', 'tel', true], ['email', 'Email', 'email'], ['dateOfBirth', 'Date of birth', 'date'],
+    ['name', 'Name', 'text', true], ['phone', 'Phone', 'tel', true], ['email', 'Email', 'email'], ['age', 'Age (years)', 'number'],
     ['whatsappConsent','WhatsApp appointment and care updates','checkbox'], ['emailConsent','Email appointment and care updates','checkbox'], ['marketingConsent','Optional clinic news and offers','checkbox'], ['preferredLanguage','Message language','select:en,ur'], ['gender', 'Gender', 'select:male,female,other'], ['bloodGroup', 'Blood group', 'text'], ['address', 'Address', 'text'], ['medicalHistory', 'Medical history', 'textarea']
   ] },
   services: { title: 'Dental services', roles: ['clinic_admin', 'receptionist', 'dentist'], writeRoles: ['clinic_admin'], fields: [

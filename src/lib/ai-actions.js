@@ -42,9 +42,9 @@ export async function prepareClinicAction(database, user, args) {
     const name = string(args.patient_name), phone = pakistanMobile(args.phone);
     if (!name) throw new Error('Ask for the patient name.');
     if (await database.collection('patients').findOne({ clinicId, phone })) throw new Error('A patient with this phone already exists. Use the existing patient file.');
-    const email = string(args.email);
-    await cleanRecord('patients', { name, phone, email }, user, null, { skipIndexes: true });
-    return { type, payload: { name, phone, email }, summary: `Create patient: ${name} · ${phone}${email ? ` · ${email}` : ''} · WhatsApp care updates on`, href: '/dashboard/patients' };
+    const email = string(args.email), age = args.age ?? '';
+    await cleanRecord('patients', { name, phone, email, age }, user, null, { skipIndexes: true });
+    return { type, payload: { name, phone, email, age }, summary: `Create patient: ${name} · ${phone}${age !== '' ? ` · ${age} years` : ''}${email ? ` · ${email}` : ''} · WhatsApp care updates on`, href: '/dashboard/patients' };
   }
   if (type === 'book_appointment') {
     const { patient, phone } = await patientFor(database, clinicId, args);
@@ -55,7 +55,7 @@ export async function prepareClinicAction(database, user, args) {
     if (user.role === 'dentist' && String(doctor._id) !== user.doctorId) throw new Error('Dentists can only book their own schedule.');
     const date = string(args.date), time = string(args.time);
     if (!validDate(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new Error('Ask for a valid appointment date and time. Use YYYY-MM-DD and HH:mm.');
-    if (!patient) await cleanRecord('patients', { name: string(args.patient_name), phone, email: string(args.email) }, user, null, { skipIndexes: true });
+    if (!patient) await cleanRecord('patients', { name: string(args.patient_name), phone, email: string(args.email), age: args.age ?? '' }, user, null, { skipIndexes: true });
     let service = null;
     if (args.service_name) service = await one(database, 'services', clinicId, string(args.service_name), { active: { $ne: false } });
     if (service && !Number.isFinite(Number(service.standardFee))) throw new Error('This service has no valid fee. Update it in Services before booking.');
@@ -64,7 +64,7 @@ export async function prepareClinicAction(database, user, args) {
     const clinic = await database.collection('clinics').findOne({ _id: new ObjectId(clinicId) }, { projection: { newPatientCheckupFee: 1 } });
     const checkupFee = Number(clinic?.newPatientCheckupFee ?? 500), fee = service ? Number(service.standardFee) + (!patient && !service.includesCheckup ? checkupFee : 0) : checkupFee;
     const patientName = patient?.name || string(args.patient_name);
-    return { type, payload: { patientId: patient ? String(patient._id) : '', newPatient: patient ? null : { name: patientName, phone, email: string(args.email) }, doctorId: String(doctor._id), serviceId: service ? String(service._id) : '', date, time, notes: string(args.notes, 1000) }, summary: `Book ${patientName} · ${doctor.name} · ${date} ${time} · ${service?.name || 'Dental checkup'} · Rs ${fee.toLocaleString('en-PK')}${patient ? ` · WhatsApp ${patient.whatsappConsent ? 'on' : 'off'}` : ' · new patient · WhatsApp care updates on'}`, href: '/dashboard/appointments' };
+    return { type, payload: { patientId: patient ? String(patient._id) : '', newPatient: patient ? null : { name: patientName, phone, email: string(args.email), age: args.age ?? '' }, doctorId: String(doctor._id), serviceId: service ? String(service._id) : '', date, time, notes: string(args.notes, 1000) }, summary: `Book ${patientName}${!patient && args.age !== undefined ? ` · ${args.age} years` : ''} · ${doctor.name} · ${date} ${time} · ${service?.name || 'Dental checkup'} · Rs ${fee.toLocaleString('en-PK')}${patient ? ` · WhatsApp ${patient.whatsappConsent ? 'on' : 'off'}` : ' · new patient · WhatsApp care updates on'}`, href: '/dashboard/appointments' };
   }
   if (type === 'create_service') {
     const name = string(args.service_name), standardFee = money(args.amount), durationMinutes = Number(args.duration_minutes);
