@@ -16,7 +16,7 @@ export default function WorkspaceShell({ children, links, user, clinicName, clin
   const mainLinks=links.filter(([label])=>!['Website studio','Reports','Staff','Clinic settings','My account'].includes(label));
   const manageLinks=links.filter(([label])=>['Website studio','Reports','Staff','Clinic settings','My account'].includes(label));
   const initials=user.name?.split(' ').map(x=>x[0]).slice(0,2).join('') || 'DC';
-  const renderLink=([label,href])=>{const Icon=icons[label]||LayoutDashboard,active=pathname===href||(href!=='/dashboard'&&pathname.startsWith(href+'/')||href==='/dashboard/care/plans'&&pathname.startsWith('/dashboard/care/'));return <Link key={href} href={href} className={`nav-link ${active?'active':''}`} aria-current={active?'page':undefined}><Icon size={19}/><span>{label}</span>{active&&<span className="nav-active-dot"/>}</Link>};
+  const renderLink=([label,href])=>{const Icon=icons[label]||LayoutDashboard,active=pathname===href||(href!=='/dashboard'&&pathname.startsWith(href+'/')||href==='/dashboard/care/sessions'&&pathname.startsWith('/dashboard/care/'));return <Link key={href} href={href} className={`nav-link ${active?'active':''}`} aria-current={active?'page':undefined}><Icon size={19}/><span>{label}</span>{active&&<span className="nav-active-dot"/>}</Link>};
   async function logout(){setLoggingOut(true);try{const r=await fetch('/api/auth/logout',{method:'POST'});if(r.ok)location.href='/login';else setLoggingOut(false)}catch{setLoggingOut(false)}}
   return <div className={`workspace ${pathname?.startsWith('/dashboard/ai')?'workspace-ai':''}`}>
     <a href="#workspace-content" className="skip-link">Skip to content</a>

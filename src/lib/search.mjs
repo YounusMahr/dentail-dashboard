@@ -4,7 +4,6 @@ const specs=[
  ['doctors','Doctors',['name','email','specialization'],'name','/dashboard/doctors'],
  ['appointments','Appointments',['appointmentDate','status'],'appointmentDate','/dashboard/appointments'],
  ['careSessions','Sessions',['title','scheduledDate','status'],'title','/dashboard/care/sessions'],
- ['treatmentPlans','Treatment plans',['title','status'],'title','/dashboard/care/plans'],
  ['invoices','Invoices',['invoiceNumber','description','status'],'invoiceNumber','/dashboard/invoices'],
  ['labCases','Lab cases',['title','labName','status'],'title','/dashboard/care/labs'],
  ['follow-ups','Follow-ups',['dueDate','status'],'dueDate','/dashboard/follow-ups'],
@@ -24,7 +23,7 @@ export async function searchClinic(database,user,term){
  return (await Promise.all(specs.filter(([col])=>!(user.role!=='clinic_admin'&&['users','clinicPages'].includes(col))&&!(user.role==='receptionist'&&col==='prescriptions')).map(async([col,label,fields,title,path])=>{
    const q={...scope,$or:fields.map(k=>({[k]:regex}))};if(ObjectId.isValid(text))q.$or.push({_id:new ObjectId(text)});
    if(!['patients','doctors','services','users','clinicPages'].includes(col)&&patientIds.length)q.$or.push({patientId:{$in:patientIds}});
-   if(user.role==='dentist'&&['appointments','treatments','treatmentPlans','careSessions','prescriptions'].includes(col))q.doctorId=user.doctorId||'unassigned';
+   if(user.role==='dentist'&&['appointments','treatments','careSessions','prescriptions'].includes(col))q.doctorId=user.doctorId||'unassigned';
    const projection=Object.fromEntries([...new Set([title,'patientId','status','appointmentDate','startsAt','scheduledDate','dueDate','specialization'])].map(k=>[k,1]));
    const rows=await database.collection(col).find(q,{projection,maxTimeMS:3000}).sort({_id:-1}).limit(6).toArray();
    return {label,hasMore:rows.length>5,results:rows.slice(0,5).map(r=>({id:String(r._id),title:String(r[title]||label),detail:[patients.find(p=>String(p._id)===r.patientId)?.name,r.scheduledDate||r.appointmentDate||r.dueDate,r.startsAt,r.specialization,r.status].filter(Boolean).join(' · '),href:col==='patients'?`${path}/${r._id}`:`${path}?record=${r._id}`}))};

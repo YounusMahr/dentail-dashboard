@@ -7,7 +7,7 @@ import { careSections,clinicalRoles } from '@/lib/care-schema';
 import ToothPicker from '../../[module]/tooth-picker';
 import Dialog from '@/components/dialog';
 import VoiceDraft from '@/components/voice-draft';
-const tabs=[['plans','Plans',HeartPulse],['sessions','Sessions',CalendarDays],['prescriptions','Prescriptions',FileText],['labs','Lab work',FlaskConical],['waitlist','Waiting list',Clock3],['portal','Patient access',Users],['insights','Practice insights',Activity]];
+const tabs=[['sessions','Sessions',CalendarDays],['prescriptions','Prescriptions',FileText],['labs','Lab work',FlaskConical],['waitlist','Waiting list',Clock3],['portal','Patient access',Users],['insights','Practice insights',Activity]];
 const money=n=>Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:2});
 const blankMedicine=()=>({name:'',strength:'',dose:'',frequency:'',duration:'',instructions:''});
 const medicineFields=[['name','Medicine / دوا'],['strength','Strength / طاقت'],['dose','Dose / خوراک'],['frequency','Frequency / اوقات'],['duration','Duration / مدت'],['instructions','Directions / ہدایات']];

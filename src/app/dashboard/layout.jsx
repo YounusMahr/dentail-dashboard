@@ -8,7 +8,7 @@ export async function generateMetadata(){const user=await currentUser();if(!user
 export default async function DashboardLayout({ children }) {
   const user = await currentUser();
   if (!user) redirect('/login');
-  const links = [['Dashboard','/dashboard'],['Appointments','/dashboard/appointments'],['Patients','/dashboard/patients'],['Care workspace','/dashboard/care/plans'],['Treatments','/dashboard/treatments'],['Invoices','/dashboard/invoices'],['Follow-ups','/dashboard/follow-ups'],['Doctors','/dashboard/doctors'],['Services','/dashboard/services']];
+  const links = [['Dashboard','/dashboard'],['Appointments','/dashboard/appointments'],['Patients','/dashboard/patients'],['Care workspace','/dashboard/care/sessions'],['Treatments','/dashboard/treatments'],['Invoices','/dashboard/invoices'],['Follow-ups','/dashboard/follow-ups'],['Doctors','/dashboard/doctors'],['Services','/dashboard/services']];
   if (user.role === 'clinic_admin') {
     links.splice(links.findIndex(([label]) => label === 'Doctors'), 0, ['WhatsApp','/dashboard/whatsapp']);
     links.push(['Website studio','/dashboard/website'],['Reports','/dashboard/reports'],['Staff','/dashboard/staff'],['Clinic settings','/dashboard/settings']);

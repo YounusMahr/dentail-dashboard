@@ -18,12 +18,11 @@ export async function GET(request, { params }) {
   const ctx = await context(params);
   if (!ctx) return fail('Patient not found', 404);
   const { database, user, patient, q } = ctx;
-  const [appointments, treatments, invoices, followUps, plans, payments, sessions, prescriptions, labCases, doctors, services] = await Promise.all([
+  const [appointments, treatments, invoices, followUps, payments, sessions, prescriptions, labCases, doctors, services] = await Promise.all([
     database.collection('appointments').find({ ...q, deletedAt: { $exists: false } }).sort({ appointmentDate: -1, startsAt: -1 }).toArray(),
     database.collection('treatments').find(q, { projection: user.role === 'receptionist' ? { clinicalNotes: 0, diagnosis: 0, prescription: 0 } : undefined }).sort({ createdAt: -1 }).toArray(),
     database.collection('invoices').find(q).sort({ createdAt: -1 }).toArray(),
     database.collection('follow-ups').find(q).sort({ dueDate: -1 }).toArray(),
-    database.collection('treatmentPlans').find(q, { projection: { title: 1, status: 1, toothNumbers: 1, summary: 1, aftercare: 1, totalFee: 1, nextReviewDate: 1 } }).sort({ createdAt: -1 }).toArray(),
     database.collection('payments').find(q).sort({ createdAt: -1 }).toArray(),
     database.collection('careSessions').find(q, { projection: { title: 1, scheduledDate: 1, status: 1, amountDue: 1, planId: 1, appointmentId: 1 } }).sort({ scheduledDate: -1 }).toArray(),
     user.role === 'receptionist' ? [] : database.collection('prescriptions').find(q, { projection: { diagnosis: 1, reviewDate: 1, status: 1, revision: 1, appointmentId: 1, createdAt: 1, medications: 1 } }).sort({ createdAt: -1 }).toArray(),
@@ -33,7 +32,7 @@ export async function GET(request, { params }) {
   ]);
   const totalPaid = payments.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const outstanding = invoices.filter(item => item.status !== 'cancelled').reduce((sum, item) => sum + Number(item.balanceAmount || 0), 0);
-  return ok({ patient, appointments, treatments, invoices, followUps, plans, payments, sessions, prescriptions, labCases, doctors, services, totalPaid, outstanding, userRole: user.role });
+  return ok({ patient, appointments, treatments, invoices, followUps, payments, sessions, prescriptions, labCases, doctors, services, totalPaid, outstanding, userRole: user.role });
 }
 
 export async function PATCH(request, { params }) {
