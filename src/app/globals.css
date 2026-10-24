@@ -276,7 +276,7 @@
   .clinic-testimonials-v2-grid{grid-template-columns:repeat(2,1fr)}
   .clinic-footer-v2-grid{grid-template-columns:repeat(2,1fr)}
 }
-@media(max-width:850px){
+@media(max-width:1100px){
   .clinic-nav-links{display:none}
   .clinic-about-grid{grid-template-columns:1fr;gap:45px}
   .clinic-why-us-grid{grid-template-columns:1fr;gap:45px}
@@ -326,3 +326,35 @@ button.patient-inline-action{padding:7px 11px;border:1px solid #d2eadb;border-ra
 .notification-item{overflow-wrap:anywhere}
 @media(max-width:760px){.notification-popover{position:fixed;top:72px;left:12px;right:12px;width:auto;max-width:none;max-height:calc(100dvh - 84px);margin-top:0;overflow-y:auto;overscroll-behavior:contain}}
 .ai-action-card{display:grid;gap:9px;max-width:560px;margin-top:14px;padding:15px;border:1px solid #b7dfc9;border-radius:12px;background:#f0faf4;color:#164b38}.ai-action-card strong{font-size:12px}.ai-action-card p{margin:0;font-size:11px;line-height:1.6;overflow-wrap:anywhere}.ai-action-card button,.ai-action-card a{display:inline-flex;align-items:center;justify-content:center;gap:6px;justify-self:start;min-height:36px;padding:8px 13px;border-radius:8px;background:#0d9672;color:#fff;font-size:11px;font-weight:600;text-decoration:none;box-shadow:none}.ai-action-card button:hover,.ai-action-card a:hover{background:#08775d;color:#fff;box-shadow:none}.ai-action-card small{font-size:10px;color:#647b72}@media(max-width:520px){.ai-action-card{padding:12px}.ai-action-card button,.ai-action-card a{width:100%}}
+
+/* Keep the patient directory readable without horizontal scrolling. */
+.table-wrap:has(.patient-directory-table){overflow-x:visible}
+.patient-directory-table{table-layout:fixed;min-width:0}
+.patient-directory-table th:first-child{width:34%}
+.patient-directory-table th:nth-child(2){width:32%}
+.patient-directory-table td,.patient-directory-table th{padding:12px 14px;overflow-wrap:anywhere}
+.patient-directory-table td:first-child>div{min-width:0}
+.patient-directory-table td:first-child strong{overflow-wrap:anywhere}
+.patient-directory-table td:last-child .row{gap:6px}
+.patient-directory-table td:last-child .btn,.patient-directory-table td:last-child button{padding:7px 10px;font-size:10px}
+.patient-reminders{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.patient-reminders span{display:inline-flex;align-items:center;padding:4px 7px;border-radius:7px;font-size:10px;font-weight:600;line-height:1.2;white-space:nowrap}
+.patient-reminders .is-on{background:#e5f6eb;color:#0a7856}
+.patient-reminders .is-off{background:#f0f3f4;color:#728286}
+@media(max-width:850px){
+  .patient-directory-table,.patient-directory-table tbody{display:block;width:100%}
+  .patient-directory-table thead{display:none}
+  .patient-directory-table tbody{display:grid;gap:9px;padding:8px 0}
+  .patient-directory-table tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;padding:12px;border:1px solid #dfeae5;border-radius:12px;background:#fff}
+  .patient-directory-table td{display:block;width:auto;padding:0;border:0;min-width:0}
+  .patient-directory-table td::before{display:none}
+  .patient-directory-table td:nth-child(2){align-self:center}
+  .patient-directory-table td:last-child{grid-column:1/-1;padding-top:8px;border-top:1px solid #eef3f0;background:transparent}
+  .patient-directory-table td:last-child .row{display:flex;flex-wrap:wrap}
+}
+@media(max-width:480px){
+  .patient-directory-table tr{grid-template-columns:minmax(0,1fr)}
+  .patient-directory-table td:nth-child(2){grid-column:1;align-self:start}
+  .patient-directory-table td:last-child{grid-column:1}
+  .patient-directory-table td:last-child .btn,.patient-directory-table td:last-child button{min-height:32px}
+}
