@@ -2,19 +2,19 @@
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Sparkles, LayoutDashboard, CalendarDays, Users, Stethoscope, Receipt, BellRing, MessageCircle, UserRound, HeartPulse, ChartNoAxesCombined, Settings2, ShieldCheck, Search, Menu, X, ChevronRight, LogOut, Globe2 } from 'lucide-react';
+import { Sparkles, LayoutDashboard, CalendarDays, Users, Stethoscope, Receipt, BellRing, MessageCircle, UserRound, HeartPulse, ChartNoAxesCombined, Settings2, ShieldCheck, Search, Menu, X, ChevronRight, LogOut, Globe2, BadgePercent } from 'lucide-react';
 import Brand from '@/components/brand';
 import UniversalSearch from '@/components/universal-search';
 import PwaInstallPrompt from '@/components/pwa-install-prompt';
 import NotificationBell from '@/components/notification-bell';
-const icons = { 'AI Assistant': Sparkles, 'Care workspace': HeartPulse, Dashboard: LayoutDashboard, Appointments: CalendarDays, Patients: Users, Treatments: HeartPulse, Invoices: Receipt, 'Follow-ups': BellRing, WhatsApp: MessageCircle, Doctors: Stethoscope, Services: ShieldCheck, 'Website studio':Globe2, Reports: ChartNoAxesCombined, Staff: Users, 'Clinic settings': Settings2, Platform: LayoutDashboard, 'My account': UserRound };
+const icons = { 'AI Assistant': Sparkles, 'Care workspace': HeartPulse, Dashboard: LayoutDashboard, Appointments: CalendarDays, Patients: Users, Treatments: HeartPulse, Invoices: Receipt, 'Follow-ups': BellRing, WhatsApp: MessageCircle, Doctors: Stethoscope, Services: ShieldCheck, 'Website studio':Globe2, Reports: ChartNoAxesCombined, Staff: Users, Plans: BadgePercent, 'Clinic settings': Settings2, Platform: LayoutDashboard, 'My account': UserRound };
 export default function WorkspaceShell({ children, links, user, clinicName, clinicSlug, clinicLogo }) {
   const pathname = usePathname(), [open,setOpen] = useState(false), [search,setSearch] = useState(''), [loggingOut,setLoggingOut] = useState(false);
   useEffect(()=>{setOpen(false);setSearch('')},[pathname]);
   useEffect(()=>{if(!open)return;const previous=document.body.style.overflow;document.body.style.overflow='hidden';const close=event=>{if(event.key==='Escape')setOpen(false)};document.addEventListener('keydown',close);return()=>{document.body.style.overflow=previous;document.removeEventListener('keydown',close)}},[open]);
   const current = [...links].sort((a,b)=>b[1].length-a[1].length).find(([,url])=>pathname===url||pathname.startsWith(url+'/'))?.[0] || 'Workspace';
-  const mainLinks=links.filter(([label])=>!['Website studio','Reports','Staff','Clinic settings','My account'].includes(label));
-  const manageLinks=links.filter(([label])=>['Website studio','Reports','Staff','Clinic settings','My account'].includes(label));
+  const mainLinks=links.filter(([label])=>!['Website studio','Reports','Staff','Plans','Clinic settings','My account'].includes(label));
+  const manageLinks=links.filter(([label])=>['Website studio','Reports','Staff','Plans','Clinic settings','My account'].includes(label));
   const initials=user.name?.split(' ').map(x=>x[0]).slice(0,2).join('') || 'DC';
   const renderLink=([label,href])=>{const Icon=icons[label]||LayoutDashboard,active=pathname===href||(href!=='/dashboard'&&pathname.startsWith(href+'/')||href==='/dashboard/care/sessions'&&pathname.startsWith('/dashboard/care/'));return <Link key={href} href={href} className={`nav-link ${active?'active':''}`} aria-current={active?'page':undefined}><Icon size={19}/><span>{label}</span>{active&&<span className="nav-active-dot"/>}</Link>};
   async function logout(){setLoggingOut(true);try{const r=await fetch('/api/auth/logout',{method:'POST'});if(r.ok)location.href='/login';else setLoggingOut(false)}catch{setLoggingOut(false)}}
@@ -29,7 +29,7 @@ export default function WorkspaceShell({ children, links, user, clinicName, clin
     </aside>
     <div className="workspace-body">
       <header className="workspace-header"><div className="flex items-center gap-3"><button className="icon-button mobile-only" aria-label="Open navigation" aria-controls="workspace-navigation" aria-expanded={open} onClick={()=>setOpen(true)}><Menu size={21}/></button><span className="breadcrumb-root">Workspace</span><ChevronRight size={14} className="breadcrumb-root text-slate-400"/><span className="header-current">{current}</span></div>
-        <div className="header-actions">{user.role!=='platform_owner'&&<div className="desktop-search"><UniversalSearch links={links}/></div>} {clinicSlug&&<Link className="view-clinic-link inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 hover:text-white" href={`/clinic/${clinicSlug}`} target="_blank" rel="noopener noreferrer">Clinic</Link>}{user.role!=='platform_owner'&&<NotificationBell/>}<Link href="/dashboard/account" className="header-user"><span className="avatar overflow-hidden">{user.photoDataUrl?<img src={user.photoDataUrl} alt="" className="h-full w-full object-cover"/>:initials}</span><span className="user-copy"><strong>{user.name}</strong><small>{user.role.replaceAll('_',' ')}</small></span></Link></div>
+        <div className="header-actions">{user.role!=='platform_owner'&&<div className="desktop-search"><UniversalSearch links={links}/></div>} {clinicSlug&&<Link className="view-clinic-link inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 hover:text-white" href={clinicSlug === "zentra" ? "/" : `/clinic/${clinicSlug}`} target="_blank" rel="noopener noreferrer">Clinic</Link>}{user.role!=='platform_owner'&&<NotificationBell/>}<Link href="/dashboard/account" className="header-user"><span className="avatar overflow-hidden">{user.photoDataUrl?<img src={user.photoDataUrl} alt="" className="h-full w-full object-cover"/>:initials}</span><span className="user-copy"><strong>{user.name}</strong><small>{user.role.replaceAll('_',' ')}</small></span></Link></div>
       </header>
       {user.role!=='platform_owner'&&<div className="mobile-search-row"><UniversalSearch links={links}/></div>}
       <main id="workspace-content" className="main">{children}<footer className="workspace-footer"><span>DentalCare <span className="text-slate-300 mx-2">/</span> Made for better patient care</span><span className="flex items-center gap-1.5"><ShieldCheck size={14}/> Your clinic workspace</span></footer></main>

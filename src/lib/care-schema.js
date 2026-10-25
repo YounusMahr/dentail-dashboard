@@ -4,9 +4,9 @@ export const careSections = {
     ['toothNumbers','FDI tooth numbers','teeth'],['totalFee','Agreed fee (PKR)','number',true],['nextReviewDate','Next review date','date'],
     ['summary','Patient-friendly treatment explanation','textarea'],['aftercare','Doctor-approved aftercare','textarea']
   ]},
-  sessions:{title:'Treatment sessions',subtitle:'Plan each visit. Track completion and payments separately.',fields:[
-    ['planId','Treatment plan','plan',true],['title','Session / procedure','text',true],['scheduledDate','Planned date','date',true],
-    ['amountDue','Session fee allocation (PKR)','number',true],['appointmentId','Linked appointment (optional)','appointment'],
+  sessions:{title:'Treatment sessions',subtitle:'Schedule care and track each visit and payment.',fields:[
+    ['patientId','Patient','patient',true],['doctorId','Dentist','doctor',true],['title','Session / procedure','text',true],['scheduledDate','Planned date','date',true],
+    ['amountDue','Session fee (PKR)','number',true],['appointmentId','Linked appointment (optional)','appointment'],
     ['notes','Session notes','textarea']
   ]},
   prescriptions:{title:'Prescriptions',subtitle:'Editable drafts. Doctor-approved English and Urdu A4 prescriptions.',clinical:true,fields:[

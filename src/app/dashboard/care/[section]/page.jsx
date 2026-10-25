@@ -72,7 +72,6 @@ export default function CareWorkspace({sectionOverride}){
       latestTime:'18:00',
       durationMinutes:30,
       language:'bilingual',
-      planId:data?.options?.plans?.[0]?._id||'',
       serviceId:data?.options?.services?.[0]?._id||'',
       totalFee:5000,
       amountDue:2500,

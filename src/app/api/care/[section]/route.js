@@ -116,12 +116,11 @@ export async function POST(request,{params}) {
       const record=await cleanCare(section,body,user,existing);
       if(section==='prescriptions'){record.medications=medications(body.medications);record.status='draft'}
       if(section==='sessions'){
-        if(existing&&['planId','amountDue'].some(k=>String(record[k]??existing[k])!==String(existing[k])))throw new Error('Session plan and fee cannot change after allocation');
-        const plan=await related(database,'treatmentPlans',record.planId||existing.planId,user.clinicId);
-        if(!plan.invoiceId||!['accepted','in_progress'].includes(plan.status))throw new Error('Accept the treatment plan before adding sessions');
-        if(user.role==='dentist'&&plan.doctorId!==user.doctorId)throw new Error('Choose your own treatment plan');
-        Object.assign(record,{patientId:plan.patientId,doctorId:plan.doctorId,invoiceId:plan.invoiceId});
-        if(record.appointmentId){const a=await related(database,'appointments',record.appointmentId,user.clinicId);if(a.patientId!==plan.patientId||a.doctorId!==plan.doctorId||a.appointmentDate!==(record.scheduledDate||existing?.scheduledDate))throw new Error('Appointment must match patient, dentist and session date')}
+        if(existing&&['patientId','doctorId','amountDue'].some(k=>String(record[k]??existing[k])!==String(existing[k])))throw new Error('Patient, dentist and fee cannot change after invoicing');
+        if(record.appointmentId){
+          const a=await related(database,'appointments',record.appointmentId,user.clinicId);
+          if(a.patientId!==(record.patientId||existing?.patientId)||a.doctorId!==(record.doctorId||existing?.doctorId)||a.appointmentDate!==(record.scheduledDate||existing?.scheduledDate))throw new Error('Appointment must match patient, dentist and session date');
+        }
         if(existing&&existing.status==='completed')throw new Error('Completed sessions cannot be edited');
       }
       if(section==='plans'&&existing?.invoiceId&&['totalFee','patientId','doctorId','title'].some(k=>k in record&&record[k]!==existing[k]))throw new Error('Accepted plan identity and agreed fee are locked');
@@ -134,8 +133,9 @@ export async function POST(request,{params}) {
           recordId=existing._id;
         } else {
           if(section==='sessions'){
-            const updated=await database.collection('treatmentPlans').updateOne({...q,_id:new ObjectId(record.planId),status:{$in:['accepted','in_progress']},$expr:{$lte:[{$add:[{$ifNull:['$allocatedFee',0]},record.amountDue]},'$totalFee']}},{$inc:{allocatedFee:record.amountDue},$set:{status:'in_progress'}},{session});
-            if(!updated.modifiedCount)throw new Error('Session fees exceed the agreed treatment fee');
+            const invoiceId=new ObjectId();
+            record.invoiceId=String(invoiceId);
+            await database.collection('invoices').insertOne({_id:invoiceId,...q,patientId:record.patientId,doctorId:record.doctorId,feeType:'treatment',invoiceNumber:`INV-${Date.now()}-${randomBytes(3).toString('hex')}`,description:record.title,items:[{description:record.title,quantity:1,unitPrice:record.amountDue,totalPrice:record.amountDue}],discountAmount:0,totalAmount:record.amountDue,paidAmount:0,balanceAmount:record.amountDue,status:record.amountDue?'unpaid':'paid',createdAt:new Date()},{session});
           }
           const status={plans:'draft',sessions:'planned',prescriptions:'draft',labs:'ordered',waitlist:'waiting',website:'draft'}[section];
           const inserted=await collection.insertOne({...record,...q,status,version:0,createdAt:new Date(),updatedAt:new Date()},{session});recordId=inserted.insertedId;

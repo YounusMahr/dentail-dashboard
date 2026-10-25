@@ -345,6 +345,32 @@ button.patient-inline-action{padding:7px 11px;border:1px solid #d2eadb;border-ra
 .patient-reminders span{display:inline-flex;align-items:center;padding:4px 7px;border-radius:7px;font-size:10px;font-weight:600;line-height:1.2;white-space:nowrap}
 .patient-reminders .is-on{background:#e5f6eb;color:#0a7856}
 .patient-reminders .is-off{background:#f0f3f4;color:#728286}
+/* Invoice numbers and names keep readable columns on desktop, then become cards. */
+.invoice-directory-table{table-layout:fixed;min-width:0}
+.invoice-directory-table th:nth-child(1){width:16%}
+.invoice-directory-table th:nth-child(2){width:20%}
+.invoice-directory-table th:nth-child(3){width:11%}
+.invoice-directory-table th:nth-child(4),.invoice-directory-table th:nth-child(5),.invoice-directory-table th:nth-child(6){width:10%}
+.invoice-directory-table th:nth-child(7){width:9%}
+.invoice-directory-table th:nth-child(8){width:14%}
+.invoice-directory-table th,.invoice-directory-table td{padding:13px 12px;overflow-wrap:normal}
+.invoice-directory-table td:first-child{overflow-wrap:anywhere}
+.invoice-directory-table .record-identity strong{overflow-wrap:normal;word-break:normal;line-height:1.45}
+.invoice-directory-table td:last-child .row{gap:6px}
+.invoice-directory-table td:last-child .btn,.invoice-directory-table td:last-child button{min-height:30px;padding:6px 9px;font-size:10px}
+@media(max-width:1100px){
+  .table-wrap:has(.invoice-directory-table){overflow:visible}
+  .invoice-directory-table,.invoice-directory-table tbody{display:block;width:100%}
+  .invoice-directory-table thead{display:none}
+  .invoice-directory-table tbody{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:4px 0}
+  .invoice-directory-table tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px;padding:15px;border:1px solid #e0eae5;border-radius:13px;background:#fff;box-shadow:0 4px 15px #123c2d08}
+  .invoice-directory-table td{display:block;width:auto;min-width:0;padding:0;border:0}
+  .invoice-directory-table td::before{content:attr(data-label);display:block;margin-bottom:4px;color:#81948b;font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+  .invoice-directory-table td:nth-child(2){grid-column:1/-1;grid-row:1}
+  .invoice-directory-table td:last-child{grid-column:1/-1;padding-top:9px;border-top:1px solid #edf3ef}
+  .invoice-directory-table .record-identity strong{overflow-wrap:normal}
+}
+@media(max-width:680px){.invoice-directory-table tbody{grid-template-columns:1fr}}
 @media(max-width:1100px){
   .patient-directory-table,.patient-directory-table tbody{display:block;width:100%}
   .patient-directory-table thead{display:none}

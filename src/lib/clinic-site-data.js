@@ -10,7 +10,7 @@ export async function loadClinicSite(slug,preview=false){
   if(preview){const user=await currentUser();if(user?.role!=='clinic_admin'||user.clinicId!==clinicId)return null}
   const [services,doctors,extraPages,patientCount]=await Promise.all([
     database.collection('services').find({clinicId,active:{$ne:false}},{projection:{name:1,category:1,description:1,standardFee:1,durationMinutes:1}}).sort({name:1}).toArray(),
-    database.collection('doctors').find({clinicId,active:{$ne:false}},{projection:{name:1,specialization:1,specialtyBio:1,consultationFee:1}}).sort({name:1}).toArray(),
+    database.collection('doctors').find({clinicId,active:{$ne:false}},{projection:{name:1,specialization:1,specialtyBio:1,consultationFee:1,photoDataUrl:1}}).sort({name:1}).toArray(),
     database.collection('clinicPages').find({clinicId,published:{$ne:null}},{projection:{slug:1,published:1}}).toArray(),
     database.collection('patients').countDocuments({clinicId}),
   ]);

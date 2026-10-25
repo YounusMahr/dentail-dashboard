@@ -11,7 +11,7 @@ export default async function DashboardLayout({ children }) {
   const links = [['Dashboard','/dashboard'],['Appointments','/dashboard/appointments'],['Patients','/dashboard/patients'],['Care workspace','/dashboard/care/sessions'],['Treatments','/dashboard/treatments'],['Invoices','/dashboard/invoices'],['Follow-ups','/dashboard/follow-ups'],['Doctors','/dashboard/doctors'],['Services','/dashboard/services']];
   if (user.role === 'clinic_admin') {
     links.splice(links.findIndex(([label]) => label === 'Doctors'), 0, ['WhatsApp','/dashboard/whatsapp']);
-    links.push(['Website studio','/dashboard/website'],['Reports','/dashboard/reports'],['Staff','/dashboard/staff'],['Clinic settings','/dashboard/settings']);
+    links.push(['Website studio','/dashboard/website'],['Reports','/dashboard/reports'],['Staff','/dashboard/staff'],['Plans','/dashboard/plans'],['Clinic settings','/dashboard/settings']);
   }
   if (['clinic_admin','receptionist','dentist'].includes(user.role)) links.unshift(['AI Assistant','/dashboard/ai']);
   if (user.role === 'platform_owner') links.splice(0, links.length, ['Platform','/dashboard/platform']);
