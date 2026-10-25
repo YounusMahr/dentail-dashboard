@@ -14,6 +14,7 @@ export async function ensureIndexes() {
   if (!indexesPromise) indexesPromise=Promise.all([
     database.collection('notificationOutbox').createIndex({clinicId:1,eventKey:1},{unique:true}),
     database.collection('emailOutbox').createIndex({clinicId:1,eventKey:1},{unique:true}),
+    database.collection('clinicSmtpSettings').createIndex({clinicId:1},{unique:true}),
     database.collection('users').createIndex({ email: 1 }, { unique: true }),
     database.collection('clinics').createIndex({ slug: 1 }, { unique: true }),
     database.collection('sessions').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
