@@ -15,5 +15,5 @@ export async function PATCH(request){
  const password=String(body.password||'');if(password.length<8||password.length>128)return fail('New password needs 8–128 characters');
  const record=await database.collection('users').findOne({_id:new ObjectId(user._id)});
  if(!verifyPassword(String(body.currentPassword||'').slice(0,128),record?.passwordHash))return fail('Current password is incorrect',403);
- await database.collection('users').updateOne({_id:user._id},{$set:{passwordHash:hashPassword(password),updatedAt:new Date()}});return ok({success:true});
+ await database.collection('users').updateOne({_id:user._id},{$set:{passwordHash:hashPassword(password),mustChangePassword:false,updatedAt:new Date()}});return ok({success:true});
 }

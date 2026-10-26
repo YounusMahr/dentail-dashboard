@@ -1,0 +1,107 @@
+import { ObjectId } from 'mongodb';
+import { hashPassword } from '@/lib/auth';
+import { ensureIndexes } from '@/lib/db';
+import { verifyControlRequest } from '@/lib/control-plane.mjs';
+import { fail, ok } from '@/lib/http';
+import { subscriptionPlan } from '@/lib/subscription-plans';
+import { issuePasswordReset, listPasswordResets } from '@/lib/password-reset';
+
+export const runtime = 'nodejs';
+
+const services = [
+  { name: 'Consultation & Dental Checkup', standardFee: 1500, durationMinutes: 20 },
+  { name: 'Scaling & Polishing', standardFee: 3000, durationMinutes: 30 },
+  { name: 'Tooth Restoration / Filling', standardFee: 4000, durationMinutes: 30 },
+];
+function addMonthsClamped(date, months) {
+  const result = new Date(date), day = result.getUTCDate();
+  result.setUTCDate(1);
+  result.setUTCMonth(result.getUTCMonth() + months);
+  const lastDay = new Date(Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0)).getUTCDate();
+  result.setUTCDate(Math.min(day, lastDay));
+  return result;
+}
+
+export async function POST(request) {
+  const raw = await request.text();
+  let database;
+  try { database = await verifyControlRequest(request, raw); }
+  catch { return fail('Unauthorized', 401); }
+  let body;
+  try { body = JSON.parse(raw); } catch { return fail('Invalid JSON'); }
+  const slug = process.env.MANAGED_CLINIC_SLUG;
+  if (process.env.MANAGED_CLINIC !== 'true' || !slug) return fail('Managed clinic mode is not configured', 503);
+
+  if (body.action === 'ping') return ok({ ready: true, slug });
+  if (body.action === 'provision') {
+    const clinic = body.clinic || {}, admin = body.admin || {};
+    if (clinic.slug !== slug || !clinic.name || !admin.name || !/^\S+@\S+\.\S+$/.test(admin.email || '') || String(admin.password || '').length < 12) return fail('Invalid clinic or admin details');
+    await ensureIndexes();
+    const existing = await database.collection('clinics').findOne({ slug });
+    if (existing) return ok({ clinicId: String(existing._id), alreadyProvisioned: true });
+    const session = database.client.startSession();
+    try {
+      let clinicId;
+      await session.withTransaction(async () => {
+        const result = await database.collection('clinics').insertOne({ name: String(clinic.name).slice(0, 150), slug, phone: String(clinic.phone || '').slice(0, 30), address: String(clinic.address || '').slice(0, 500), currency: 'PKR', timezone: 'Asia/Karachi', status: 'suspended', subscription: { status: 'pending_payment' }, createdAt: new Date() }, { session });
+        clinicId = String(result.insertedId);
+        const created = await database.collection('users').insertOne({ clinicId, name: String(admin.name).slice(0, 150), email: String(admin.email).toLowerCase(), phone: String(admin.phone || '').slice(0, 30), passwordHash: hashPassword(admin.password), role: 'clinic_admin', active: true, mustChangePassword: true, createdAt: new Date() }, { session });
+        await database.collection('doctors').insertOne({ clinicId, userId: String(created.insertedId), name: String(admin.name).slice(0, 150), email: String(admin.email).toLowerCase(), specialization: 'Dental Surgeon / Clinic Director', consultationFee: 1500, slotMinutes: 30, workingDays: 'monday,tuesday,wednesday,thursday,friday,saturday', startTime: '10:00', endTime: '20:00', active: true, createdAt: new Date() }, { session });
+        await database.collection('services').insertMany(services.map(item => ({ ...item, clinicId, active: true, createdAt: new Date() })), { session });
+      });
+      return ok({ clinicId }, 201);
+    } catch (error) { return fail(error.code === 11000 ? 'Clinic or admin already exists' : 'Provisioning failed', 409); }
+    finally { await session.endSession(); }
+  }
+
+  const clinic = await database.collection('clinics').findOne({ slug });
+  if (!clinic) return fail('Clinic not provisioned', 404);
+  const q = { clinicId: String(clinic._id) };
+  if (body.action === 'password-reset.list') return ok({ requests: await listPasswordResets(database, q.clinicId) });
+  if (body.action === 'password-reset.issue') {
+    try { return ok(await issuePasswordReset(database, body.requestId, q.clinicId)); }
+    catch (error) { return fail(error.message, 409); }
+  }
+  if (body.action === 'list-payments') {
+    const payments = await database.collection('subscriptionPayments').find(q, { projection: { receiptImage: 0 } }).sort({ createdAt: -1 }).limit(100).toArray();
+    return ok({ payments, subscription: clinic.subscription || null, status: clinic.status });
+  }
+  if (body.action === 'subscription.approve') {
+    if (!ObjectId.isValid(body.paymentId)) return fail('Invalid payment');
+    const payment = await database.collection('subscriptionPayments').findOne({ ...q, _id: new ObjectId(body.paymentId) });
+    if (payment?.status === 'approved' && clinic.subscription?.paymentId === String(payment._id)) return ok({ status: clinic.status, endsAt: clinic.subscription.endsAt, planId: payment.planId, alreadyApproved: true });
+    if (!payment || payment.status !== 'pending_review') return fail('Payment is not pending review', 409);
+    const start = new Date();
+    const currentEnd = clinic.subscription?.endsAt ? new Date(clinic.subscription.endsAt) : null;
+    if (currentEnd && currentEnd > start) start.setTime(currentEnd.getTime());
+    const end = addMonthsClamped(start, Number(payment.months || 1));
+    const session = database.client.startSession();
+    try { await session.withTransaction(async () => {
+      const changed = await database.collection('subscriptionPayments').updateOne({ ...q, _id: payment._id, status: 'pending_review' }, { $set: { status: 'approved', reviewedAt: new Date(), reviewNote: String(body.note || '').slice(0, 500) } }, { session });
+      if (!changed.modifiedCount) throw new Error('Payment was already reviewed');
+      await database.collection('clinics').updateOne({ _id: clinic._id }, { $set: { status: 'active', subscription: { status: 'active', planId: payment.planId, startedAt: start, endsAt: end, paymentId: String(payment._id) }, updatedAt: new Date() } }, { session });
+    }); } catch { return fail('Could not approve payment', 409); } finally { await session.endSession(); }
+    return ok({ status: 'active', endsAt: end, planId: payment.planId });
+  }
+  if (body.action === 'subscription.reject') {
+    if (!ObjectId.isValid(body.paymentId)) return fail('Invalid payment');
+    const changed = await database.collection('subscriptionPayments').updateOne({ ...q, _id: new ObjectId(body.paymentId), status: 'pending_review' }, { $set: { status: 'rejected', reviewedAt: new Date(), reviewNote: String(body.note || '').slice(0, 500) } });
+    return changed.modifiedCount ? ok({ status: 'rejected' }) : fail('Payment is not pending review', 409);
+  }
+  if (body.action === 'subscription.grant') {
+    const plan = subscriptionPlan(body.planId);
+    const note = String(body.note || '').trim().slice(0, 500);
+    if (!plan || note.length < 5) return fail('Choose a plan and add a reason for manual activation');
+    const startedAt = new Date(), endsAt = addMonthsClamped(startedAt, plan.months);
+    await database.collection('clinics').updateOne({ _id: clinic._id }, { $set: { status: 'active', subscription: { status: 'active', planId: plan.id, startedAt, endsAt, manual: true, reason: note }, updatedAt: new Date() } });
+    await database.collection('auditLogs').insertOne({ ...q, module: 'subscription', recordId: String(clinic._id), action: 'manual-activation', reason: note, createdAt: new Date() });
+    return ok({ status: 'active', endsAt, planId: plan.id, manual: true });
+  }
+  if (body.action === 'subscription.suspend' || body.action === 'subscription.reactivate') {
+    const active = body.action === 'subscription.reactivate';
+    if (active && (!clinic.subscription?.endsAt || new Date(clinic.subscription.endsAt) <= new Date())) return fail('Subscription has expired; approve a new payment first', 409);
+    await database.collection('clinics').updateOne({ _id: clinic._id }, { $set: { status: active ? 'active' : 'suspended', 'subscription.status': active ? 'active' : 'suspended', updatedAt: new Date() } });
+    return ok({ status: active ? 'active' : 'suspended' });
+  }
+  return fail('Unknown action');
+}

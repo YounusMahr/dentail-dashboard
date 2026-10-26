@@ -6,13 +6,14 @@ import PublicSite from '../clinic/[slug]/public-site';
 import '../clinic/[slug]/clinic-site.css';
 
 const pages = { 'about-us': 'about', services: 'services', 'contact-us': 'contact' };
+const homeClinic = process.env.MANAGED_CLINIC_SLUG || 'zentra';
 
 export async function generateMetadata({ params }) {
   await connection();
   const { clinicPage } = await params;
   const pageKey = pages[clinicPage];
   if (!pageKey) return { title: 'Page not found' };
-  const data = await loadClinicSite('zentra');
+  const data = await loadClinicSite(homeClinic);
   if (!data) return { title: 'Clinic not found' };
   const page = data.website.pages[pageKey];
   return {
@@ -27,7 +28,7 @@ export default async function ClinicPage({ params }) {
   const { clinicPage } = await params;
   const pageKey = pages[clinicPage];
   if (!pageKey) notFound();
-  const data = await loadClinicSite('zentra');
+  const data = await loadClinicSite(homeClinic);
   if (!data) notFound();
   return <PublicSite data={data} pageKey={pageKey} rootAlias />;
 }

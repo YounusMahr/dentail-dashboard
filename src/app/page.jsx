@@ -5,7 +5,7 @@ import { brandingUrls } from '@/lib/clinic-profile.mjs';
 import PublicSite from './clinic/[slug]/public-site';
 import './clinic/[slug]/clinic-site.css';
 
-const homeClinic = 'zentra';
+const homeClinic = process.env.MANAGED_CLINIC_SLUG || 'zentra';
 
 export async function generateMetadata() {
   await connection();

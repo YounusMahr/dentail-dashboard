@@ -16,7 +16,7 @@ export default async function DashboardLayout({ children }) {
   if (['clinic_admin','receptionist','dentist'].includes(user.role)) links.unshift(['AI Assistant','/dashboard/ai']);
   if (user.role === 'platform_owner') links.splice(0, links.length, ['Platform','/dashboard/platform']);
   links.push(['My account','/dashboard/account']);
-  const clinic=user.clinicId&&ObjectId.isValid(user.clinicId)?await (await db()).collection('clinics').findOne({_id:new ObjectId(user.clinicId)},{projection:{name:1,logoVersion:1,slug:1}}):null;
-  return <WorkspaceShell links={links} user={{name:user.name,role:user.role}} clinicName={clinic?.name||'DentalCare Platform'} clinicSlug={clinic?.slug} clinicLogo={clinic?brandingUrls(clinic).logoUrl:null}>{children}</WorkspaceShell>;
+  const clinic=user.clinicId&&ObjectId.isValid(user.clinicId)?await (await db()).collection('clinics').findOne({_id:new ObjectId(user.clinicId)},{projection:{name:1,logoVersion:1,slug:1,status:1,subscription:1}}):null;
+  return <WorkspaceShell links={links} user={{name:user.name,role:user.role,mustChangePassword:!!user.mustChangePassword}} clinicName={clinic?.name||'DentalCare Platform'} clinicSlug={clinic?.slug} clinicStatus={clinic?.status} subscriptionEndsAt={clinic?.subscription?.endsAt?.toISOString?.()||null} managed={process.env.MANAGED_CLINIC === 'true'} clinicLogo={clinic?brandingUrls(clinic).logoUrl:null}>{children}</WorkspaceShell>;
 }
 

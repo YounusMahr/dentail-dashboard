@@ -1,6 +1,7 @@
 import { db, ensureIndexes } from '@/lib/db';
 import { clearSession, createSession, currentUser, hashPassword, sameOrigin, verifyPassword } from '@/lib/auth';
 import { fail, ok, string } from '@/lib/http';
+import { queuePasswordReset } from '@/lib/password-reset';
 
 export async function GET(request, { params }) {
   if ((await params).action !== 'me') return fail('Not found', 404);
@@ -14,6 +15,12 @@ export async function POST(request, { params }) {
   if (action === 'logout') { await clearSession(); return ok({ success: true }); }
   const body = await request.json().catch(() => ({}));
   const database = await db();
+  if (action === 'forgot-password') {
+    const result = await queuePasswordReset(database, body.email);
+    if (result.invalid) return fail('Enter a valid email address');
+    if (result.limited) return fail('Too many requests. Please try again later.', 429);
+    return Response.json({ success: true, message: 'Please check your email for a new password after the request is processed.' }, { headers: { 'Cache-Control': 'no-store' } });
+  }
   if (action === 'login') {
     const user = await database.collection('users').findOne({ email: string(body.email).toLowerCase(), active: true });
     if (!user || !verifyPassword(String(body.password || ''), user.passwordHash)) return fail('Invalid email or password', 401);
@@ -21,6 +28,7 @@ export async function POST(request, { params }) {
     return ok({ success: true });
   }
   if (action === 'register') {
+    if (process.env.ALLOW_PUBLIC_CLINIC_REGISTRATION !== 'true') return fail('Clinic registration is managed by the super admin', 403);
     const clinicName = string(body.clinicName, 150), ownerName = string(body.ownerName, 150);
     const email = string(body.email).toLowerCase(), password = String(body.password || '');
     if (!clinicName || !ownerName || !/^\S+@\S+\.\S+$/.test(email) || password.length < 8) return fail('Enter clinic, owner, valid email and an 8 character password');
