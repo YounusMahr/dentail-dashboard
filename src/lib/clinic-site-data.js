@@ -3,6 +3,14 @@ import { db } from './db';
 import { currentUser } from './auth';
 import { websiteFor,websitePages } from './clinic-website.mjs';
 
+export async function homeClinicSlug() {
+  if (process.env.MANAGED_CLINIC_SLUG || process.env.PUBLIC_CLINIC_SLUG) return process.env.MANAGED_CLINIC_SLUG || process.env.PUBLIC_CLINIC_SLUG;
+  const clinics = (await db()).collection('clinics');
+  if (await clinics.findOne({ slug: 'zentra', status: 'active' }, { projection: { _id: 1 } })) return 'zentra';
+  const available = await clinics.find({ status: 'active' }, { projection: { slug: 1 } }).limit(2).toArray();
+  return available.length === 1 ? available[0].slug : 'zentra';
+}
+
 export async function loadClinicSite(slug,preview=false){
   const database=await db(),clinic=await database.collection('clinics').findOne({slug,status:'active'});
   if(!clinic)return null;

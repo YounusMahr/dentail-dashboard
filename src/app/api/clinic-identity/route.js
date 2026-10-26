@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 
-export async function GET() {
+export async function GET(request) {
   const collection = (await db()).collection('clinics');
   const configuredSlug = process.env.MANAGED_CLINIC_SLUG || process.env.PUBLIC_CLINIC_SLUG;
   let clinic = configuredSlug
@@ -11,8 +11,9 @@ export async function GET() {
     if (candidates.length === 1) clinic = candidates[0];
     if (candidates.length > 1) return Response.json({ error: 'More than one clinic uses this database. Set MANAGED_CLINIC_SLUG for this deployment.' }, { status: 409 });
   }
-  const slug = clinic?.slug || configuredSlug;
-  const name = clinic?.name || process.env.MANAGED_CLINIC_NAME;
-  if (!slug || !name) return Response.json({ error: 'Clinic profile not found. Set MANAGED_CLINIC_SLUG and MANAGED_CLINIC_NAME on this clinic deployment.' }, { status: 404 });
-  return Response.json({ clinic: { name, slug, phone: clinic?.phone || '', address: clinic?.address || '', email: clinic?.email || '', logoUrl: clinic?.logoVersion ? `/api/clinic-brand/${clinic._id}/logo?v=${clinic.logoVersion}` : null, databaseName: process.env.MONGODB_DB || 'dentists' } }, { headers: { 'Cache-Control': 'no-store' } });
+  const hostName = new URL(request.url).hostname.split('.')[0].toLowerCase();
+  const suggestedSlug = hostName.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'new-clinic';
+  const slug = clinic?.slug || configuredSlug || suggestedSlug;
+  const name = clinic?.name || process.env.MANAGED_CLINIC_NAME || slug.split('-').map(part => part[0].toUpperCase() + part.slice(1)).join(' ');
+  return Response.json({ clinic: { name, slug, phone: clinic?.phone || '', address: clinic?.address || '', email: clinic?.email || '', logoUrl: clinic?.logoVersion ? `/api/clinic-brand/${clinic._id}/logo?v=${clinic.logoVersion}` : null, databaseName: process.env.MONGODB_DB || 'dentists', provisional: !clinic } }, { headers: { 'Cache-Control': 'no-store' } });
 }
