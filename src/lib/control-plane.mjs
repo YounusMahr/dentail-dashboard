@@ -1,7 +1,24 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { db } from './db.js';
 
 let nonceIndexesPromise;
+
+export async function verifyControlAccess(request, body = '') {
+  const authorization = request.headers.get('authorization') || '';
+  if (authorization.startsWith('Bearer ')) {
+    const token = authorization.slice(7);
+    if (!/^[a-f0-9]{64}$/i.test(token)) throw new Error('Invalid control token');
+    const database = await db();
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const grant = await database.collection('controlGrants').findOne({ tokenHash, revokedAt: { $exists: false } });
+    if (!grant) throw new Error('Control token is revoked or invalid');
+    return { database, slug: grant.slug, clinicId: grant.clinicId, grantId: grant._id };
+  }
+  const database = await verifyControlRequest(request, body);
+  const slug = process.env.MANAGED_CLINIC_SLUG;
+  if (process.env.MANAGED_CLINIC !== 'true' || !slug || !process.env.MONGODB_DB) throw new Error('Managed clinic mode is not configured');
+  return { database, slug };
+}
 
 export async function verifyControlRequest(request, body = '') {
   const secret = process.env.CLINIC_CONTROL_SECRET;

@@ -1,7 +1,7 @@
 import { ObjectId } from 'mongodb';
 import { hashPassword, verifyPassword } from '@/lib/auth';
 import { ensureIndexes } from '@/lib/db';
-import { verifyControlRequest } from '@/lib/control-plane.mjs';
+import { verifyControlAccess } from '@/lib/control-plane.mjs';
 import { fail, ok } from '@/lib/http';
 import { subscriptionPlan } from '@/lib/subscription-plans';
 import { issuePasswordReset, listPasswordResets } from '@/lib/password-reset';
@@ -24,14 +24,15 @@ function addMonthsClamped(date, months) {
 
 export async function POST(request) {
   const raw = await request.text();
-  let database;
-  try { database = await verifyControlRequest(request, raw); }
+  let database, slug, grantId;
+  try { ({ database, slug, grantId } = await verifyControlAccess(request, raw)); }
   catch { return fail('Unauthorized', 401); }
   let body;
   try { body = JSON.parse(raw); } catch { return fail('Invalid JSON'); }
-  const slug = process.env.MANAGED_CLINIC_SLUG;
-  if (process.env.MANAGED_CLINIC !== 'true' || !slug || !process.env.MONGODB_DB) return fail('Managed clinic mode and database are not configured', 503);
-
+  if (body.action === 'control.revoke' && grantId) {
+    await database.collection('controlGrants').updateOne({ _id: grantId, revokedAt: { $exists: false } }, { $set: { revokedAt: new Date() } });
+    return ok({ revoked: true });
+  }
   if (body.action === 'ping') return ok({ ready: true, slug });
   if (body.action === 'admin.create') {
     const details = body.clinic || {}, admin = body.admin || {};
