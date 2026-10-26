@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb';
-import { hashPassword } from '@/lib/auth';
+import { hashPassword, verifyPassword } from '@/lib/auth';
 import { ensureIndexes } from '@/lib/db';
 import { verifyControlRequest } from '@/lib/control-plane.mjs';
 import { fail, ok } from '@/lib/http';
@@ -30,9 +30,39 @@ export async function POST(request) {
   let body;
   try { body = JSON.parse(raw); } catch { return fail('Invalid JSON'); }
   const slug = process.env.MANAGED_CLINIC_SLUG;
-  if (process.env.MANAGED_CLINIC !== 'true' || !slug) return fail('Managed clinic mode is not configured', 503);
+  if (process.env.MANAGED_CLINIC !== 'true' || !slug || !process.env.MONGODB_DB) return fail('Managed clinic mode and database are not configured', 503);
 
   if (body.action === 'ping') return ok({ ready: true, slug });
+  if (body.action === 'admin.create') {
+    const details = body.clinic || {}, admin = body.admin || {};
+    const username = String(admin.username || '').trim().toLowerCase();
+    const usernameIsEmail = /^\S+@\S+\.\S+$/.test(username);
+    const email = usernameIsEmail ? username : String(details.email || '').trim().toLowerCase();
+    const password = String(admin.password || '');
+    if (details.slug !== slug || !String(details.name || '').trim() || !(usernameIsEmail || /^[a-z][a-z0-9._-]{2,39}$/.test(username)) || !/^\S+@\S+\.\S+$/.test(email) || password.length < 12 || password.length > 128) return fail('Enter a valid username, clinic email and a password of 12 to 128 characters');
+    await ensureIndexes();
+    const existing = await database.collection('clinics').findOne({ slug });
+    const previousAdmin = await database.collection('users').findOne({ $or: [{ email }, { username }, { email: username }, { username: email }] });
+    if (previousAdmin) {
+      if (previousAdmin.clinicId === String(existing?._id) && previousAdmin.role === 'clinic_admin' && (previousAdmin.username || previousAdmin.email) === username && verifyPassword(password, previousAdmin.passwordHash)) return ok({ clinicId: previousAdmin.clinicId, userId: String(previousAdmin._id), status: existing.status, email: previousAdmin.email, alreadyCreated: true });
+      return fail('Admin username or email already exists in this clinic', 409);
+    }
+    const session = database.client.startSession();
+    try {
+      let clinicId = existing ? String(existing._id) : null, userId;
+      await session.withTransaction(async () => {
+        if (!clinicId) {
+          const created = await database.collection('clinics').insertOne({ name: String(details.name).slice(0, 150), slug, phone: String(details.phone || '').slice(0, 40), address: String(details.address || '').slice(0, 500), email: String(details.email || '').slice(0, 150), currency: 'PKR', timezone: 'Asia/Karachi', status: 'suspended', subscription: { status: 'pending_payment' }, createdAt: new Date() }, { session });
+          clinicId = String(created.insertedId);
+          await database.collection('services').insertMany(services.map(item => ({ ...item, clinicId, active: true, createdAt: new Date() })), { session });
+        }
+        const createdAdmin = await database.collection('users').insertOne({ clinicId, name: String(admin.name || `${details.name} Admin`).slice(0, 150), username, email, phone: '', passwordHash: hashPassword(password), role: 'clinic_admin', active: true, mustChangePassword: false, createdAt: new Date() }, { session });
+        userId = String(createdAdmin.insertedId);
+      });
+      return ok({ clinicId, userId, status: existing?.status || 'pending_payment', email }, 201);
+    } catch (error) { return fail(error.code === 11000 ? 'Admin username or email already exists in this clinic' : 'Could not create clinic admin', 409); }
+    finally { await session.endSession(); }
+  }
   if (body.action === 'provision') {
     const clinic = body.clinic || {}, admin = body.admin || {};
     if (clinic.slug !== slug || !clinic.name || !admin.name || !/^\S+@\S+\.\S+$/.test(admin.email || '') || String(admin.password || '').length < 12) return fail('Invalid clinic or admin details');
@@ -57,6 +87,26 @@ export async function POST(request) {
   const clinic = await database.collection('clinics').findOne({ slug });
   if (!clinic) return fail('Clinic not provisioned', 404);
   const q = { clinicId: String(clinic._id) };
+  if (body.action === 'admin.block' || body.action === 'admin.unblock') {
+    const byId = ObjectId.isValid(body.userId) ? { _id: new ObjectId(body.userId) } : null;
+    const username = String(body.username || '').trim().toLowerCase();
+    const email = String(body.email || '').trim().toLowerCase();
+    if (!byId && !username && !email) return fail('Admin account is required');
+    const identity = byId || { $or: [...(username ? [{ username }] : []), ...(email ? [{ email }] : [])] };
+    const admin = await database.collection('users').findOne({ ...q, role: 'clinic_admin', ...identity });
+    if (!admin) return fail('Clinic admin not found', 404);
+    const blocked = body.action === 'admin.block';
+    const session = database.client.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await database.collection('users').updateOne({ _id: admin._id, ...q, role: 'clinic_admin' }, { $set: { active: !blocked, updatedAt: new Date() } }, { session });
+        if (blocked) await database.collection('sessions').deleteMany({ userId: String(admin._id) }, { session });
+        await database.collection('auditLogs').insertOne({ ...q, module: 'users', recordId: String(admin._id), action: blocked ? 'admin-blocked' : 'admin-unblocked', createdAt: new Date() }, { session });
+      });
+    } catch { return fail('Could not update admin access', 409); }
+    finally { await session.endSession(); }
+    return ok({ blocked, userId: String(admin._id) });
+  }
   if (body.action === 'password-reset.list') return ok({ requests: await listPasswordResets(database, q.clinicId) });
   if (body.action === 'password-reset.issue') {
     try { return ok(await issuePasswordReset(database, body.requestId, q.clinicId)); }

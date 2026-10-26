@@ -22,8 +22,9 @@ export async function POST(request, { params }) {
     return Response.json({ success: true, message: 'Please check your email for a new password after the request is processed.' }, { headers: { 'Cache-Control': 'no-store' } });
   }
   if (action === 'login') {
-    const user = await database.collection('users').findOne({ email: string(body.email).toLowerCase(), active: true });
-    if (!user || !verifyPassword(String(body.password || ''), user.passwordHash)) return fail('Invalid email or password', 401);
+    const login = string(body.email).toLowerCase();
+    const user = await database.collection('users').findOne({ $or: [{ email: login }, { username: login }], active: true });
+    if (!user || !verifyPassword(String(body.password || ''), user.passwordHash)) return fail('Invalid username or password', 401);
     await createSession(String(user._id));
     return ok({ success: true });
   }

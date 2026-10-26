@@ -16,6 +16,7 @@ export async function ensureIndexes() {
     database.collection('emailOutbox').createIndex({clinicId:1,eventKey:1},{unique:true}),
     database.collection('clinicSmtpSettings').createIndex({clinicId:1},{unique:true}),
     database.collection('users').createIndex({ email: 1 }, { unique: true }),
+    database.collection('users').createIndex({ username: 1 }, { unique: true, partialFilterExpression: { username: { $type: 'string' } } }),
     database.collection('clinics').createIndex({ slug: 1 }, { unique: true }),
     database.collection('sessions').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     database.collection('appointments').createIndex(
