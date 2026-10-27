@@ -13,12 +13,18 @@ export async function POST(request, { params }) {
   const { clinicId, token } = await params;
   if (!ObjectId.isValid(clinicId) || !process.env.EVOLUTION_API_KEY) return reply(404);
   const database = await db();
-  const settings = await database.collection('messagingSettings').findOne({ clinicId }, { projection: { instanceName: 1 } });
+  const settings = await database.collection('messagingSettings').findOne({ clinicId }, { projection: { instanceName: 1, legacyWebhookUrl: 1, legacyWebhookInstance: 1 } });
   if (!settings?.instanceName || !validWebhookToken(clinicId, settings.instanceName, token)) return reply(404);
   const raw = await request.text();
-  if (raw.length > 12000) return reply(413);
+  if (raw.length > 512000) return reply(413);
   let event;
   try { event = JSON.parse(raw); } catch { return reply(400); }
+  if (settings.legacyWebhookUrl && settings.legacyWebhookInstance === settings.instanceName) {
+    after(async () => { try {
+      const forwarded = await fetch(settings.legacyWebhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: raw, redirect: 'error', signal: AbortSignal.timeout(8000) });
+      if (!forwarded.ok) console.error('Previous WhatsApp webhook returned', forwarded.status);
+    } catch (error) { console.error('Previous WhatsApp webhook relay failed:', error.message); } });
+  }
   const incoming = incomingPatientText(event, settings.instanceName);
   if (!incoming) return reply();
   const staff = await database.collection('users').find({ clinicId, active: { $ne: false }, role: { $in: ['clinic_admin', 'receptionist', 'dentist'] } }, { projection: { phone: 1 } }).toArray();

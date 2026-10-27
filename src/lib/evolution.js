@@ -253,7 +253,7 @@ export async function sendEvolutionMedia(number, { media, mediaType = 'document'
   return { success: true, messageId: res.data?.key?.id || res.data?.messageId || null, data: res.data };
 }
 
-export async function configurePatientWebhook(instanceName, url) {
+export async function configurePatientWebhook(instanceName, url, { preservePrevious } = {}) {
   const instance = encodeURIComponent(instanceName);
   const current = await evolutionFetch(`/webhook/find/${instance}`);
   if (!current.ok && current.status !== 404) throw new Error('Could not inspect the existing WhatsApp webhook.');
@@ -263,7 +263,13 @@ export async function configurePatientWebhook(instanceName, url) {
     const existingPath = new URL(existing.url).pathname;
     const incomingPath = new URL(url).pathname;
     const managedClinic = incomingPath.split('/')[4];
-    if (existingPath !== incomingPath && !new RegExp(`^/api/webhooks/evolution/${managedClinic}/[a-f0-9]{64}$`, 'i').test(existingPath)) throw new Error('This WhatsApp instance already uses another webhook. Assign a dedicated instance to the patient assistant.');
+    const ours = new RegExp(`^/api/webhooks/evolution/${managedClinic}/[a-f0-9]{64}$`, 'i').test(existingPath);
+    const anotherClinic = /^\/api\/webhooks\/evolution\/[a-f0-9]{24}\/[a-f0-9]{64}$/i.test(existingPath) && !ours;
+    if (anotherClinic) throw new Error('This WhatsApp instance is already connected to another clinic. Assign a separate instance.');
+    if (!ours && existingPath !== incomingPath) {
+      if (!preservePrevious) throw new Error('The existing WhatsApp webhook needs a relay before it can be replaced.');
+      await preservePrevious(existing.url);
+    }
   }
   const events = [...new Set([...(Array.isArray(existing?.events) ? existing.events : []), 'MESSAGES_UPSERT'])];
   const result = await evolutionFetch(`/webhook/set/${instance}`, { method: 'POST', body: JSON.stringify({ webhook: { enabled: true, url, byEvents: false, base64: false, events } }) });
@@ -276,6 +282,12 @@ export async function configurePatientWebhook(instanceName, url) {
 export async function ensurePatientWebhook(clinicId, instanceName, origin) {
   if (!process.env.GROQ_API_KEY || !origin?.startsWith('https://')) return false;
   const { webhookToken } = await import('./whatsapp-patient-webhook.mjs');
-  await configurePatientWebhook(instanceName, `${origin}/api/webhooks/evolution/${clinicId}/${webhookToken(clinicId, instanceName)}`);
+  const endpoint = `${origin}/api/webhooks/evolution/${clinicId}/${webhookToken(clinicId, instanceName)}`;
+  await configurePatientWebhook(instanceName, endpoint, { preservePrevious: async previous => {
+    const old = new URL(previous), current = new URL(endpoint);
+    if (old.protocol !== 'https:' || old.hostname === current.hostname || /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(old.hostname)) throw new Error('The existing WhatsApp webhook cannot be safely relayed.');
+    const { db } = await import('./db');
+    await (await db()).collection('messagingSettings').updateOne({ clinicId }, { $set: { legacyWebhookUrl: old.href, legacyWebhookInstance: instanceName, updatedAt: new Date() } }, { upsert: true });
+  } });
   return true;
 }
