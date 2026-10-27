@@ -30,6 +30,7 @@ export async function ensureIndexes() {
     database.collection('services').createIndex({clinicId:1,createdAt:-1}),
     database.collection('users').createIndex({clinicId:1,createdAt:-1}),
     database.collection('appointments').createIndex({clinicId:1,appointmentDate:1,startsAt:1}),
+    database.collection('appointments').createIndex({clinicId:1,sourceRequestKey:1},{unique:true,partialFilterExpression:{sourceRequestKey:{$type:'string'}}}),
     database.collection('treatments').createIndex({clinicId:1,createdAt:-1}),
     database.collection('invoices').createIndex({clinicId:1,createdAt:-1}),
     database.collection('follow-ups').createIndex({clinicId:1,dueDate:1}),
@@ -37,6 +38,10 @@ export async function ensureIndexes() {
     database.collection('invoices').createIndex({ clinicId: 1, visitInvoiceKey: 1 }, { unique: true, partialFilterExpression: { visitInvoiceKey: { $exists: true } } }),
     database.collection('visitSessions').createIndex({clinicId:1,appointmentId:1},{unique:true}),
     database.collection('prescriptions').createIndex({clinicId:1,appointmentId:1}),
+    database.collection('whatsappAiInbox').createIndex({clinicId:1,instanceName:1,messageId:1},{unique:true}),
+    database.collection('whatsappAiInbox').createIndex({clinicId:1,phone:1,status:1,createdAt:1}),
+    database.collection('whatsappAiConversations').createIndex({clinicId:1,phone:1},{unique:true}),
+    database.collection('whatsappAiRate').createIndex({expiresAt:1},{expireAfterSeconds:0}),
   ]).catch(error=>{indexesPromise=undefined;throw error});
   return indexesPromise;
 }

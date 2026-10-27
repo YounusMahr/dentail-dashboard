@@ -111,7 +111,8 @@ export async function publicMessagingSettings(clinicId) {
     profileName: live.profileName,
     profilePicUrl: live.profilePicUrl,
     ownerNumber: live.ownerNumber,
-    allInstances: live.allInstances || []
+    allInstances: live.allInstances || [],
+    patientAiEnabled: stored?.patientAiEnabled === true
   };
 }
 

@@ -252,3 +252,17 @@ export async function sendEvolutionMedia(number, { media, mediaType = 'document'
 
   return { success: true, messageId: res.data?.key?.id || res.data?.messageId || null, data: res.data };
 }
+
+export async function configurePatientWebhook(instanceName, url) {
+  const instance = encodeURIComponent(instanceName);
+  const current = await evolutionFetch(`/webhook/find/${instance}`);
+  if (!current.ok && current.status !== 404) throw new Error('Could not inspect the existing WhatsApp webhook.');
+  const existing = current.data?.webhook || current.data;
+  if (existing?.enabled && existing.url && existing.url !== url) throw new Error('This WhatsApp instance already uses another webhook. Keep that integration or assign a dedicated instance to the patient assistant.');
+  const events = [...new Set([...(Array.isArray(existing?.events) ? existing.events : []), 'MESSAGES_UPSERT'])];
+  const result = await evolutionFetch(`/webhook/set/${instance}`, { method: 'POST', body: JSON.stringify({ webhook: { enabled: true, url, byEvents: false, base64: false, events } }) });
+  if (!result.ok) throw new Error('WhatsApp provider could not enable incoming message delivery.');
+  const check = await evolutionFetch(`/webhook/find/${instance}`);
+  const saved = check.data?.webhook || check.data;
+  if (!check.ok || !saved?.enabled || saved.url !== url || !saved.events?.includes('MESSAGES_UPSERT')) throw new Error('WhatsApp provider did not save the patient assistant webhook.');
+}

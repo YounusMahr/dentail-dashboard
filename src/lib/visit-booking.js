@@ -7,9 +7,10 @@ import {queueEmail,dispatchEmailOutbox} from './email-notifications';
 import {after} from 'next/server';
 
 // One booking owns one initial visit, invoice and editable prescription pad.
-export async function bookVisit(input, user, {publicBooking=false}={}) {
+export async function bookVisit(input, user, {publicBooking=false,bookingSource='website',sendConfirmation=true,sourceRequestKey=''}={}) {
   const database=await db();
   await ensureIndexes();
+  if(sourceRequestKey){const previous=await database.collection('appointments').findOne({clinicId:user.clinicId,sourceRequestKey},{projection:{_id:1,patientId:1}});if(previous)return {id:String(previous._id),patientId:previous.patientId,newPatient:false}}
   const clinic=await database.collection('clinics').findOne({_id:new ObjectId(user.clinicId)});
   if(!clinic)throw new Error('Clinic not found');
   const session=database.client.startSession();
@@ -41,7 +42,7 @@ export async function bookVisit(input, user, {publicBooking=false}={}) {
       }
       const appointment=await cleanRecord('appointments',{...input,patientId},user,null,{session,skipIndexes:true});
       const appointmentId=new ObjectId();
-      await database.collection('appointments').insertOne({_id:appointmentId,...appointment,clinicId:user.clinicId,bookingSource:publicBooking?'website':'dashboard',createdAt:now,updatedAt:now},{session});
+      await database.collection('appointments').insertOne({_id:appointmentId,...appointment,clinicId:user.clinicId,bookingSource:publicBooking?bookingSource:'dashboard',...(sourceRequestKey?{sourceRequestKey}:{}),createdAt:now,updatedAt:now},{session});
       const service=appointment.serviceId?await database.collection('services').findOne({_id:new ObjectId(appointment.serviceId),clinicId:user.clinicId},{session}):null;
       if(appointment.serviceId&&(!service||service.active===false))throw new Error('Choose an active service');
       const checkupFee=Number(clinic.newPatientCheckupFee??500);
@@ -56,12 +57,15 @@ export async function bookVisit(input, user, {publicBooking=false}={}) {
       await database.collection('prescriptions').insertOne({_id:prescriptionId,clinicId:user.clinicId,appointmentId:String(appointmentId),patientId,doctorId:appointment.doctorId,language:'bilingual',diagnosis:'',instructionsEn:'',instructionsUr:'',medications:[],status:'draft',revision:1,createdAt:now,updatedAt:now},{session});
       result={id:String(appointmentId),patientId,invoiceId:String(invoiceId),visitSessionId:String(visitSessionId),prescriptionId:String(prescriptionId),newPatient:isNew,appointment};
     });
+  }catch(error){
+    if(error.code===11000&&sourceRequestKey){const previous=await database.collection('appointments').findOne({clinicId:user.clinicId,sourceRequestKey},{projection:{_id:1,patientId:1}});if(previous)return {id:String(previous._id),patientId:previous.patientId,newPatient:false}}
+    throw error;
   }finally{await session.endSession()}
-  try{
+  if(sendConfirmation)try{
     const outboxId=await enqueue({clinicId:user.clinicId,patientId:result.patientId,type:'appointment_confirmation',eventKey:`booking:${result.id}:${result.appointment.appointmentDate}:${result.appointment.startsAt}`,values:[result.appointment.appointmentDate,result.appointment.startsAt],sourceCollection:'appointments',sourceId:result.id,sourceFingerprint:`${result.appointment.appointmentDate} ${result.appointment.startsAt}`});
     if(outboxId)after(async()=>{try{await dispatchSingleNotification(outboxId,user.clinicId)}catch(error){console.error('WhatsApp booking confirmation failed:',error.message)}});
   }catch{console.error('Booking saved; notification will be recovered by scheduler')}
-  try{if(await queueEmail({clinicId:user.clinicId,patientId:result.patientId,type:'appointment_confirmation',eventKey:`booking:${result.id}:${result.appointment.appointmentDate}:${result.appointment.startsAt}`,details:[`Date: ${result.appointment.appointmentDate}`,`Time: ${result.appointment.startsAt}`],sourceId:result.id}))after(async()=>{try{await dispatchEmailOutbox(user.clinicId)}catch(error){console.error('Booking email failed:',error.message)}})}catch{console.error('Booking saved; email will be recovered by scheduler')}
+  if(sendConfirmation)try{if(await queueEmail({clinicId:user.clinicId,patientId:result.patientId,type:'appointment_confirmation',eventKey:`booking:${result.id}:${result.appointment.appointmentDate}:${result.appointment.startsAt}`,details:[`Date: ${result.appointment.appointmentDate}`,`Time: ${result.appointment.startsAt}`],sourceId:result.id}))after(async()=>{try{await dispatchEmailOutbox(user.clinicId)}catch(error){console.error('Booking email failed:',error.message)}})}catch{console.error('Booking saved; email will be recovered by scheduler')}
   const {appointment,...response}=result;
   return response;
 }

@@ -8,7 +8,8 @@ import { careAllowed,careIndexes,cleanCare,related,audit } from '@/lib/care';
 import { careCollections,clinicalRoles,teamRoles } from '@/lib/care-schema';
 import { medications,money,today,matchesSlot,minutes } from '@/lib/care-validation.mjs';
 import { enqueue,queueReminders,publicMessagingSettings,saveMessagingSettings,dispatchPendingNotifications,dispatchSingleNotification } from '@/lib/messaging';
-import { createOrConnectInstance, disconnectInstance, getLiveConnection, sendEvolutionText } from '@/lib/evolution';
+import { createOrConnectInstance, disconnectInstance, getLiveConnection, sendEvolutionText, configurePatientWebhook, getEvolutionConfig } from '@/lib/evolution';
+import { webhookToken } from '@/lib/whatsapp-patient-webhook.mjs';
 
 const viewExtras=['insights','portal','automation'];
 export async function GET(request,{params}) {
@@ -63,6 +64,21 @@ export async function POST(request,{params}) {
     if(section==='automation'){
       if(user.role!=='clinic_admin')return fail('Admin access required',403);
       if(body.action==='configure'){await saveMessagingSettings(user.clinicId,body);return ok({success:true})}
+      if(body.action==='patient-ai'){
+        if(body.enabled!==true&&body.enabled!==false)return fail('Choose whether to enable the patient assistant');
+        const settings=await database.collection('messagingSettings').findOne(q);
+        const instanceName=settings?.instanceName||getEvolutionConfig().defaultInstance;
+        if(body.enabled){
+          if(!process.env.GROQ_API_KEY)return fail('Clinic AI is not configured on this server',503);
+          if(!(await getLiveConnection(instanceName)).connected)return fail('Connect WhatsApp before enabling the patient assistant',409);
+          const origin=new URL(request.url).origin;
+          if(!origin.startsWith('https://'))return fail('Enable the assistant from the public HTTPS clinic deployment',400);
+          const url=`${origin}/api/webhooks/evolution/${user.clinicId}/${webhookToken(user.clinicId,instanceName)}`;
+          await configurePatientWebhook(instanceName,url);
+        }
+        await database.collection('messagingSettings').updateOne(q,{$set:{patientAiEnabled:body.enabled,instanceName,updatedAt:new Date()}},{upsert:true});
+        return ok({success:true,enabled:body.enabled});
+      }
       if(body.action==='queue'){return ok(await queueReminders(user.clinicId,false))}
       if(body.action==='connect'){
         const res=await createOrConnectInstance({instanceName:body.instanceName,number:body.number});

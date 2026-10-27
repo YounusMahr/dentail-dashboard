@@ -78,6 +78,12 @@ Clinic administrators can open **AI Assistant** in the sidebar. The server uses 
 
 Verification: `node --env-file=.env.local tests/ai-integration.mjs --live` creates and removes an isolated synthetic test database. `--live` makes a small real Groq request; omit it for database/security checks without provider usage. `--preview` holds the temporary server for browser QA until Enter is sent. It never seeds production data.
 
+### Patient WhatsApp assistant
+
+In **WhatsApp**, connect an Evolution API instance and select **Enable assistant** on the public HTTPS deployment. This configures that instance's `MESSAGES_UPSERT` webhook. The existing server-only `GROQ_API_KEY` is reused; no key is sent to WhatsApp clients. An instance with an unrelated webhook is left unchanged, so use a dedicated instance in that case.
+
+The patient assistant only receives published clinic contact details, active doctors and services, its own chat history, and checked appointment slots. It cannot call the staff AI tools or read patient, billing, clinical or staff records. It accepts one-to-one text, ignores groups, media and outbound messages, and requires the patient to confirm the exact appointment summary before creating the linked visit, invoice and prescription draft. Incoming message IDs are deduplicated, rate limited and scoped to the clinic. Pausing the assistant stops replies without disconnecting routine WhatsApp notifications. Test the live provider connection and a real inbound chat after deployment; a production build cannot prove provider delivery.
+
 ## Account and clinic branding
 
 `My account` now includes Clinic profile and Brand identity for clinic administrators, plus Personal profile and Password & security for every signed-in user. The existing Clinic settings menu opens the same editor. Clinic contact email is separate from the sign-in email; personal name and phone can be updated without changing login identity.

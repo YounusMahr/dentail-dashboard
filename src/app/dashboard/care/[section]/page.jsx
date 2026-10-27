@@ -2,7 +2,7 @@
 import { useEffect,useState,useCallback } from 'react';
 import { useParams,useSearchParams,useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus,ArrowUpRight,Check,FileText,FlaskConical,CalendarDays,Wallet,Copy,RefreshCw,Search,HeartPulse,Users,MessageSquare,ArrowRight,Printer,Clock3,Activity,QrCode,Smartphone,Send,CheckCircle2,XCircle,LogOut } from 'lucide-react';
+import { Plus,ArrowUpRight,Check,FileText,FlaskConical,CalendarDays,Wallet,Copy,RefreshCw,Search,HeartPulse,Users,MessageSquare,ArrowRight,Printer,Clock3,Activity,QrCode,Smartphone,Send,CheckCircle2,XCircle,LogOut,Bot } from 'lucide-react';
 import { careSections,clinicalRoles } from '@/lib/care-schema';
 import ToothPicker from '../../[module]/tooth-picker';
 import Dialog from '@/components/dialog';
@@ -169,6 +169,19 @@ export default function CareWorkspace({sectionOverride}){
           )}
         </div>
       </div>
+    </section>
+
+    <section className="card mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><Bot size={21}/></span>
+          <div className="min-w-0"><h2 className="mb-1 text-base">Patient WhatsApp assistant</h2><p className="muted mb-0 max-w-2xl text-xs">Answers public clinic questions and helps patients choose an available appointment. A booking is saved only after the patient confirms it in chat. The assistant cannot access staff, admin or private patient records.</p></div>
+        </div>
+        <button className={data.settings?.patientAiEnabled?'secondary':''} disabled={busy||!data.settings?.providerConnected} onClick={()=>action({action:'patient-ai',enabled:!data.settings?.patientAiEnabled},data.settings?.patientAiEnabled?'Patient assistant paused':'Patient assistant enabled')}>
+          <Bot size={15}/>{data.settings?.patientAiEnabled?'Pause assistant':'Enable assistant'}
+        </button>
+      </div>
+      <p className="muted mb-0 mt-3 text-xs">{data.settings?.patientAiEnabled?'Active for new incoming one-to-one text messages.':'Connect WhatsApp, then enable the assistant here.'} Group chats, media and the clinic’s own messages are ignored.</p>
     </section>
 
     <div className="grid two">
