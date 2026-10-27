@@ -6,6 +6,8 @@ import { fail, ok, string } from '@/lib/http';
 import { sameOrigin } from '@/lib/auth';
 import { chairSlots } from '@/lib/availability.mjs';
 import { bookVisit } from '@/lib/visit-booking';
+import { after } from 'next/server';
+import { ensurePatientWebhook, getEvolutionConfig } from '@/lib/evolution';
 export const maxDuration = 30;
 import { pakistanMobile } from '@/lib/pakistan-phone.mjs';
 
@@ -51,6 +53,13 @@ export async function POST(request, { params }) {
   }
   try {
     const booking=await bookVisit({newPatient:{name,phone,email:string(body.patientEmail),whatsappConsent:body.whatsappConsent===true,emailConsent:body.emailConsent===true,preferredLanguage:body.preferredLanguage},doctorId:body.doctorId,serviceId,appointmentDate:date,startsAt:time,patientNotes:string(body.patientNotes)},{clinicId,currency:clinic.currency||'PKR',timezone:clinic.timezone||'Asia/Karachi',role:'clinic_admin'},{publicBooking:true});
+    const origin=new URL(request.url).origin;
+    after(async()=>{try{
+      const settings=await database.collection('messagingSettings').findOne({clinicId},{projection:{instanceName:1}});
+      const instanceName=settings?.instanceName||getEvolutionConfig().defaultInstance;
+      if(!settings?.instanceName)await database.collection('messagingSettings').updateOne({clinicId},{$set:{instanceName,updatedAt:new Date()}},{upsert:true});
+      await ensurePatientWebhook(clinicId,instanceName,origin);
+    }catch(error){console.error('Automatic patient WhatsApp webhook setup failed:',error.message)}});
     return ok({confirmationId:booking.id},201);
   } catch (error) { return fail(error.code === 11000 ? 'This slot was just booked. Please choose another.' : error.message, 409); }
 }

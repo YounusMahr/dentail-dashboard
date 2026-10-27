@@ -111,8 +111,7 @@ export async function publicMessagingSettings(clinicId) {
     profileName: live.profileName,
     profilePicUrl: live.profilePicUrl,
     ownerNumber: live.ownerNumber,
-    allInstances: live.allInstances || [],
-    patientAiEnabled: stored?.patientAiEnabled === true
+    allInstances: live.allInstances || []
   };
 }
 
@@ -314,8 +313,10 @@ export async function queueReminders(clinicId, autoDispatch = false) {
 
   for (const a of appointments) {
     const base = { clinicId: a.clinicId, patientId: a.patientId, sourceCollection: 'appointments', sourceId: String(a._id), sourceFingerprint: `${a.appointmentDate} ${a.startsAt}`, values: [a.appointmentDate, a.startsAt] };
-    await enqueue({ ...base, type: 'appointment_confirmation', eventKey: `booking:${a._id}:${a.appointmentDate}:${a.startsAt}` }, null, false);
-    await queueEmail({clinicId:a.clinicId,patientId:a.patientId,type:'appointment_confirmation',eventKey:`booking:${a._id}:${a.appointmentDate}:${a.startsAt}`,details:[`Date: ${a.appointmentDate}`,`Time: ${a.startsAt}`],sourceId:String(a._id)});
+    if (a.bookingSource !== 'whatsapp_ai') {
+      await enqueue({ ...base, type: 'appointment_confirmation', eventKey: `booking:${a._id}:${a.appointmentDate}:${a.startsAt}` }, null, false);
+      await queueEmail({clinicId:a.clinicId,patientId:a.patientId,type:'appointment_confirmation',eventKey:`booking:${a._id}:${a.appointmentDate}:${a.startsAt}`,details:[`Date: ${a.appointmentDate}`,`Time: ${a.startsAt}`],sourceId:String(a._id)});
+    }
     const minutesUntil = (localInstant(a.appointmentDate, a.startsAt, timezones.get(String(a.clinicId)) || 'Asia/Karachi').getTime() - Date.now()) / 60000;
     for (const window of appointmentReminderWindows(minutesUntil)) {
       const eventKey = `reminder:${window}:${a._id}:${a.appointmentDate}:${a.startsAt}`;

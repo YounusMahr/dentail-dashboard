@@ -258,11 +258,24 @@ export async function configurePatientWebhook(instanceName, url) {
   const current = await evolutionFetch(`/webhook/find/${instance}`);
   if (!current.ok && current.status !== 404) throw new Error('Could not inspect the existing WhatsApp webhook.');
   const existing = current.data?.webhook || current.data;
-  if (existing?.enabled && existing.url && existing.url !== url) throw new Error('This WhatsApp instance already uses another webhook. Keep that integration or assign a dedicated instance to the patient assistant.');
+  if (existing?.enabled && existing.url === url && existing.events?.includes('MESSAGES_UPSERT')) return;
+  if (existing?.enabled && existing.url && existing.url !== url) {
+    const existingPath = new URL(existing.url).pathname;
+    const incomingPath = new URL(url).pathname;
+    const managedClinic = incomingPath.split('/')[4];
+    if (existingPath !== incomingPath && !new RegExp(`^/api/webhooks/evolution/${managedClinic}/[a-f0-9]{64}$`, 'i').test(existingPath)) throw new Error('This WhatsApp instance already uses another webhook. Assign a dedicated instance to the patient assistant.');
+  }
   const events = [...new Set([...(Array.isArray(existing?.events) ? existing.events : []), 'MESSAGES_UPSERT'])];
   const result = await evolutionFetch(`/webhook/set/${instance}`, { method: 'POST', body: JSON.stringify({ webhook: { enabled: true, url, byEvents: false, base64: false, events } }) });
   if (!result.ok) throw new Error('WhatsApp provider could not enable incoming message delivery.');
   const check = await evolutionFetch(`/webhook/find/${instance}`);
   const saved = check.data?.webhook || check.data;
   if (!check.ok || !saved?.enabled || saved.url !== url || !saved.events?.includes('MESSAGES_UPSERT')) throw new Error('WhatsApp provider did not save the patient assistant webhook.');
+}
+
+export async function ensurePatientWebhook(clinicId, instanceName, origin) {
+  if (!process.env.GROQ_API_KEY || !origin?.startsWith('https://')) return false;
+  const { webhookToken } = await import('./whatsapp-patient-webhook.mjs');
+  await configurePatientWebhook(instanceName, `${origin}/api/webhooks/evolution/${clinicId}/${webhookToken(clinicId, instanceName)}`);
+  return true;
 }

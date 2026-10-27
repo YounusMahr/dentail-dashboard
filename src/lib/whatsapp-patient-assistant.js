@@ -1,7 +1,7 @@
 import { ObjectId } from 'mongodb';
 import { db } from './db';
 import { chairSlots } from './availability.mjs';
-import { clinicDay } from './clinic-time.mjs';
+import { clinicDay, localInstant } from './clinic-time.mjs';
 import { bookVisit } from './visit-booking';
 import { sendEvolutionText } from './evolution';
 
@@ -9,6 +9,21 @@ const MODEL = 'openai/gpt-oss-120b';
 const MAX_DAYS_AHEAD = 45;
 const confirmation = /^(confirm|yes|book it|haan|han|jee|ji|ok|okay|تصدیق|ہاں|جی)$/i;
 const cancellation = /^(cancel|no|nahi|nahin|نہیں|منسوخ)$/i;
+const bookingQuestion = /\b(appointment|apointment|appoint|booking|book|slot|schedule|visit|time|date|mera time|meri booking|dobara)\b|اپائنٹمنٹ|بکنگ|وقت|ملاقات/i;
+
+async function upcomingBooking(database, clinicId, phone, timezone) {
+  const patients = await database.collection('patients').find({ clinicId, phone }, { projection: { _id: 1 } }).limit(5).toArray();
+  if (!patients.length) return null;
+  const ids = patients.map(patient => String(patient._id));
+  const appointments = await database.collection('appointments').find({ clinicId, patientId: { $in: ids }, appointmentDate: { $gte: clinicDay(timezone) }, status: { $nin: ['cancelled', 'rescheduled', 'completed'] }, deletedAt: { $exists: false } }, { projection: { appointmentDate: 1, startsAt: 1, doctorId: 1, serviceId: 1 } }).sort({ appointmentDate: 1, startsAt: 1 }).limit(10).toArray();
+  return appointments.find(a => localInstant(a.appointmentDate, a.startsAt, timezone).getTime() > Date.now()) || null;
+}
+
+function bookingDetails(booking, context) {
+  const doctor = context.doctors.find(d => String(d._id) === booking.doctorId);
+  const service = context.services.find(s => String(s._id) === booking.serviceId);
+  return `You already have an appointment at ${context.clinic.name}.\n*Appointment No:* ${String(booking._id).slice(-8).toUpperCase()}\n*Date:* ${booking.appointmentDate}\n*Time:* ${booking.startsAt}${doctor ? `\n*Dentist:* ${doctor.name}` : ''}${service ? `\n*Service:* ${service.name}` : ''}\nFor changes, please contact the clinic at ${context.clinic.phone || 'reception'}.`;
+}
 
 async function clinicContext(database, clinicId) {
   const clinic = await database.collection('clinics').findOne({ _id: new ObjectId(clinicId), status: 'active' }, { projection: { name: 1, bio: 1, phone: 1, email: 1, address: 1, openingHours: 1, emergencyNotice: 1, newPatientCheckupFee: 1, timezone: 1, currency: 1 } });
@@ -61,6 +76,8 @@ async function respond(database, clinicId, phone, text, conversation, fetcher, r
   const context = await clinicContext(database, clinicId);
   const timezone = context.clinic.timezone || 'Asia/Karachi';
   const lower = text.trim().toLowerCase();
+  const existingBooking = await upcomingBooking(database, clinicId, phone, timezone);
+  if (existingBooking && (bookingQuestion.test(text) || confirmation.test(lower) || conversation.pendingConfirmation)) return { reply: bookingDetails(existingBooking, context), draft: null, pendingConfirmation: null, lastBooking: null };
   if (!conversation.pendingConfirmation && conversation.lastBooking && Date.now() - new Date(conversation.lastBooking.createdAt).getTime() < 86400000 && confirmation.test(lower)) return { reply: `Your appointment is already booked. Reference: ${conversation.lastBooking.reference}.`, draft: null, pendingConfirmation: null, lastBooking: conversation.lastBooking };
   if (conversation.pendingConfirmation && confirmation.test(lower)) {
     const pending = conversation.pendingConfirmation;
@@ -76,6 +93,7 @@ async function respond(database, clinicId, phone, text, conversation, fetcher, r
   }
   if (conversation.pendingConfirmation && cancellation.test(lower)) return { reply: 'Booking request cancelled. You can ask for another time whenever you like.', draft: null, pendingConfirmation: null };
   const decision = await decide(context, conversation, text, fetcher);
+  if (existingBooking && ['availability', 'book'].includes(decision.intent)) return { reply: bookingDetails(existingBooking, context), draft: null, pendingConfirmation: null, lastBooking: null };
   if (decision.intent === 'handoff') return { reply: `Please contact our team at ${context.clinic.phone || 'the clinic reception'}. I can also help with services and booking questions.`, draft: null, pendingConfirmation: null };
   if (decision.intent === 'answer') return { reply: String(decision.reply || `Please contact ${context.clinic.name} for help.`).slice(0, 1000), draft: conversation.draft || null, pendingConfirmation: null };
   const draft = { ...conversation.draft };
@@ -106,8 +124,8 @@ export async function processPatientInbox(clinicId, phone, instanceName, { fetch
     for (let n = 0; n < 8; n++) {
       const item = await inbox.findOne({ ...key, status: 'pending' }, { sort: { createdAt: 1 } });
       if (!item) break;
-      const settings = await database.collection('messagingSettings').findOne({ clinicId }, { projection: { patientAiEnabled: 1, instanceName: 1 } });
-      if (!settings?.patientAiEnabled || settings.instanceName !== instanceName) break;
+      const settings = await database.collection('messagingSettings').findOne({ clinicId }, { projection: { instanceName: 1 } });
+      if (settings?.instanceName !== instanceName) break;
       const conversation = await conversations.findOne(key);
       const bucket = `${clinicId}:${phone}:${Math.floor(Date.now() / 60000)}`;
       const dayBucket = `${clinicId}:${phone}:day:${new Date().toISOString().slice(0, 10)}`;
